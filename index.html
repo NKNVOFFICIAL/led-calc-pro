@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2212%22%20fill%3D%22%230a0e14%22/%3E%20%20%3Crect%20x%3D%227%22%20y%3D%227%22%20width%3D%2250%22%20height%3D%2250%22%20rx%3D%226%22%20fill%3D%22%23131a24%22%20stroke%3D%22%234c8dff%22%20stroke-width%3D%222%22/%3E%20%20%3Cg%20stroke%3D%22%232a3646%22%20stroke-width%3D%221%22%3E%20%20%20%20%3Cpath%20d%3D%22M23.7%207v50M40.3%207v50M7%2023.7h50M7%2040.3h50%22/%3E%20%20%3C/g%3E%20%20%3Cpath%20d%3D%22M15%2049V32h17V15h17%22%20fill%3D%22none%22%20stroke%3D%22%235ee7ff%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-dasharray%3D%221%200%22/%3E%20%20%3Ccircle%20cx%3D%2215%22%20cy%3D%2249%22%20r%3D%223.2%22%20fill%3D%22%235ee7ff%22/%3E%20%20%3Cpath%20d%3D%22M38%2022%2028%2036h7l-3%2011%2011-16h-7z%22%20fill%3D%22%23ffb347%22%20stroke%3D%22%230a0e14%22%20stroke-width%3D%221.2%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E">
 <title>LED Calc Pro — AV Engineering Calculator</title>
 <style>
 :root{
@@ -15,7 +16,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-size:1
 body{display:flex;flex-direction:column;min-height:100vh}
 button,input,select,textarea{font:inherit;color:inherit}
 header{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
-.logo{font-weight:800;letter-spacing:.5px;font-size:17px;white-space:nowrap}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.5px;font-size:17px;white-space:nowrap}
 .logo b{color:var(--acc)}
 .hf{display:flex;flex-direction:column;gap:2px;min-width:120px}
 .hf label{font-size:10px;text-transform:uppercase;color:var(--mut);letter-spacing:.6px}
@@ -87,7 +88,7 @@ textarea#spec{height:420px;font-family:ui-monospace,Consolas,monospace;font-size
 </head>
 <body>
 <header>
-  <div class="logo">LED<b>CALC</b> PRO</div>
+  <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="28" height="28" aria-hidden="true">  <rect width="64" height="64" rx="12" fill="#0a0e14"/>  <rect x="7" y="7" width="50" height="50" rx="6" fill="#131a24" stroke="#4c8dff" stroke-width="2"/>  <g stroke="#2a3646" stroke-width="1">    <path d="M23.7 7v50M40.3 7v50M7 23.7h50M7 40.3h50"/>  </g>  <path d="M15 49V32h17V15h17" fill="none" stroke="#5ee7ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 0"/>  <circle cx="15" cy="49" r="3.2" fill="#5ee7ff"/>  <path d="M38 22 28 36h7l-3 11 11-16h-7z" fill="#ffb347" stroke="#0a0e14" stroke-width="1.2" stroke-linejoin="round"/></svg><span>LED<b>CALC</b> PRO</span></div>
   <div class="hf"><label data-i18n>Project</label><input id="pName" data-p="name"></div>
   <div class="hf"><label data-i18n>Venue</label><input id="pVenue" data-p="venue"></div>
   <div class="hf"><label data-i18n>Drawn by</label><input id="pAuthor" data-p="author"></div>
