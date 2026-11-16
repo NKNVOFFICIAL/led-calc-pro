@@ -258,6 +258,10 @@ const RU = {
 'Signal: {0} ports · {1} {2}':'Сигнал: {0} портов · {1} {2}','Signal entry: {0} (front)':'Вход сигнала: {0} (спереди)','⚡ Power IN: {0} (front)':'⚡ Вход питания: {0} (спереди)',
 'Jumpers: RJ45 {0} · PowerCON {1}':'Перемычки: RJ45 {0} · PowerCON {1}','Date: {0}':'Дата: {0}','Sheet: {0} / {1}':'Лист: {0} / {1}','View: {0}':'Вид: {0}',
 'Rear (rigging)':'Сзади (риггинг)','Front':'Спереди','Format: A4 landscape':'Формат: A4 альбомный',
+'Mixed column widths, mm':'Смешанные ширины столбцов, мм','Mixed row heights, mm':'Смешанные высоты строк, мм',
+'To mix cabinet sizes, list strips as count x size (e.g. 4x1000, 8x500): a cabinet is column width x row height, and its power and pixels scale from the base cabinet above.':'Чтобы смешать размеры кабинетов, перечислите полосы как количество x размер (например 4x1000, 8x500): кабинет = ширина столбца x высота строки, мощность и пиксели масштабируются от базового кабинета выше.',
+'Invalid column widths: uniform grid used.':'Неверные ширины столбцов: используется равномерная сетка.','Invalid row heights: uniform grid used.':'Неверные высоты строк: используется равномерная сетка.',
+'Cabinet mix: {0}':'Состав кабинетов: {0}','Cabinet mix':'Состав кабинетов',
 'Export: signal / power sheets':'Экспорт: отдельно сигнал / питание','Export: combined sheet':'Экспорт: общий лист',
 'Signal routing sheet':'Лист сигнальной коммутации','⚡ Power routing sheet':'Лист питающей коммутации','Combined routing sheet':'Общий лист коммутации',
 'Exported {0} sheet(s)':'Экспортировано листов: {0}','Port list':'Список портов','⚡ Circuit list':'⚡ Список цепей','Cab.':'Каб.','Entry':'Вход','Phase':'Фаза','col':'стб','row':'стр',
@@ -297,12 +301,34 @@ function defaultScreen(n = 1) {
   return {
     id: newId(), name: 'Screen ' + n,
     preset: '500x500', cabW: 500, cabH: 500, pitch: 2.6, cabPeak: 200,
-    tW: 8, tH: 4, cols: 16, rows: 8,
+    tW: 8, tH: 4, cols: 16, rows: 8, colSpec: '', rowSpec: '',
     avgPct: 35, breaker: 16, headroom: 20, sizeBy: 'peak',
     portPx: 655360,
     sigOverride: 0, sigAxis: 'auto', sigH: 'left', sigV: 'bottom',
     pwrOverride: 0, pwrAxis: 'auto', pwrH: 'right', pwrV: 'bottom'
   };
+}
+
+/* Parses a strip spec such as "4x1000, 8x500" or "0.5, 1, 1" (mm; values <= 10 are metres).
+   Returns an array of sizes in mm, null when empty, or 'bad' when invalid. */
+function parseSpec(str) {
+  const src = String(str || '').trim();
+  if (!src) return null;
+  const out = [];
+  for (const tok of src.split(/[,;\n]+/)) {
+    const tk = tok.trim();
+    if (!tk) continue;
+    const m = tk.match(/^(?:(\d+)\s*[x×*]\s*)?(\d+(?:\.\d+)?)$/i);
+    if (!m) return 'bad';
+    const n = m[1] ? +m[1] : 1;
+    let w = parseFloat(m[2]);
+    if (w <= 10) w *= 1000;
+    w = Math.round(w);
+    if (n < 1 || w < 100 || w > 2000) return 'bad';
+    for (let i = 0; i < n; i++) out.push(w);
+    if (out.length > 200) return 'bad';
+  }
+  return out.length ? out : null;
 }
 
 /* Returns a sanitised copy so that calculations never see invalid values. */
@@ -330,6 +356,14 @@ function clean(S) {
     s[k + 'H'] = pick(s[k + 'H'], ['left', 'right'], k === 'sig' ? 'left' : 'right');
     s[k + 'V'] = pick(s[k + 'V'], ['top', 'bottom'], 'bottom');
   }
+  // Per-column widths / per-row heights (mixed cabinet sizes); the grid size follows the specs.
+  for (const [axis, specKey, sizeKey, countKey, base] of [['col', 'colSpec', 'colW', 'cols', s.cabW], ['row', 'rowSpec', 'rowH', 'rows', s.cabH]]) {
+    s[specKey] = String(s[specKey] || '').slice(0, 400);
+    const arr = parseSpec(s[specKey]);
+    s[axis + 'Bad'] = arr === 'bad';
+    if (Array.isArray(arr)) { s[sizeKey] = arr; s[countKey] = arr.length; }
+    else s[sizeKey] = new Array(s[countKey]).fill(base);
+  }
   return s;
 }
 
@@ -337,26 +371,50 @@ function clean(S) {
 /* Slice bounds along an axis of length L into M parts: sizes differ by at most one. */
 const sliceBounds = (L, M) => Array.from({ length: M + 1 }, (_, i) => Math.round(i * L / M));
 
-function planAxis(axis, cols, rows, maxCab, override) {
-  const L = axis === 'cols' ? cols : rows, O = axis === 'cols' ? rows : cols;
-  const maxSl = m => Math.ceil(L / m) * O;
+/* wt[r][c] = load weight of a cell in reference-cabinet units (1 for a uniform grid).
+   Lines (whole columns or rows) are grouped into M contiguous slices of balanced weight. */
+function planAxis(axis, wt, maxCab, override) {
+  const rows = wt.length, cols = wt[0].length, L = axis === 'cols' ? cols : rows;
+  const lw = Array.from({ length: L }, (_, k) => {
+    let s = 0;
+    if (axis === 'cols') for (let r = 0; r < rows; r++) s += wt[r][k]; else for (let c = 0; c < cols; c++) s += wt[k][c];
+    return s;
+  });
+  const pre = [0]; lw.forEach(v => pre.push(pre[pre.length - 1] + v));
+  const total = pre[L], EPS = 1e-6, uniform = lw.every(v => Math.abs(v - lw[0]) < EPS);
+  const stat = m => {
+    let b;
+    if (uniform) b = sliceBounds(L, m);
+    else {
+      b = [0];
+      for (let i = 1; i < m; i++) {
+        const tgt = total * i / m, hi = L - (m - i);
+        let k = b[i - 1] + 1;
+        while (k < hi && Math.abs(pre[k + 1] - tgt) < Math.abs(pre[k] - tgt)) k++;
+        b.push(k);
+      }
+      b.push(L);
+    }
+    const gw = b.slice(1).map((e, i) => pre[e] - pre[b[i]]);
+    return { b, max: Math.max(...gw), even: Math.max(...gw) - Math.min(...gw) < EPS };
+  };
   let M, clamped = false;
   if (override > 0) { M = Math.min(override, L); clamped = override > L; }
   else {
-    M = Math.min(Math.max(Math.ceil(cols * rows / maxCab), 1), L);
-    while (M < L && maxSl(M) > maxCab) M++;
+    M = Math.min(Math.max(Math.ceil(total / maxCab - EPS), 1), L);
+    while (M < L && stat(M).max > maxCab + EPS) M++;
     // Prefer a count that divides the axis evenly (e.g. 2-2-2-2-2-2-2-2) if it is cheap.
     const lim = Math.min(L, M + Math.ceil(M / 2));
-    for (let m = M; m <= lim; m++) if (L % m === 0) { M = m; break; }
+    for (let m = M; m <= lim; m++) if (stat(m).even) { M = m; break; }
   }
-  const bounds = sliceBounds(L, M);
-  return { axis, M, bounds, sizes: bounds.slice(1).map((b, i) => b - bounds[i]),
-           even: L % M === 0, maxSlice: maxSl(M), fits: maxSl(M) <= maxCab, clamped };
+  const st = stat(M);
+  return { axis, M, bounds: st.b, sizes: st.b.slice(1).map((b, i) => b - st.b[i]),
+           even: st.even, maxSlice: +st.max.toFixed(2), fits: st.max <= maxCab + EPS, clamped };
 }
 
-function planSlices(cols, rows, maxCab, override, axisPref) {
+function planSlices(wt, maxCab, override, axisPref) {
   const axes = axisPref === 'auto' ? ['cols', 'rows'] : [axisPref];
-  const plans = axes.map(a => planAxis(a, cols, rows, maxCab, override));
+  const plans = axes.map(a => planAxis(a, wt, maxCab, override));
   plans.sort((a, b) => (b.fits - a.fits) || (b.even - a.even) || (a.M - b.M));
   return plans[0];
 }
@@ -399,16 +457,28 @@ function compute(S, project) {
   const usableA = s.breaker * (1 - s.headroom / 100);
   const basisW = s.cabPeak * (s.sizeBy === 'peak' ? 1 : s.avgPct / 100);
   const pwrMax = Math.max(1, Math.floor(usableA * pv / basisW));
-  const sigPlan = planSlices(s.cols, s.rows, sigMax, s.sigOverride, s.sigAxis);
-  const pwrPlan = planSlices(s.cols, s.rows, pwrMax, s.pwrOverride, s.pwrAxis);
+  // Per-cell loads relative to the base cabinet: pixels for signal, area for power.
+  const colW = s.colW, rowH = s.rowH;
+  const pxC = colW.map(w => Math.max(1, Math.round(w / s.pitch))), pxR = rowH.map(h => Math.max(1, Math.round(h / s.pitch)));
+  const sigWt = rowH.map((_, r) => colW.map((_, c) => pxC[c] * pxR[r] / (pxW * pxH)));
+  const pwrWt = rowH.map((h, r) => colW.map((w, c) => w * h / (s.cabW * s.cabH)));
+  const sigPlan = planSlices(sigWt, sigMax, s.sigOverride, s.sigAxis);
+  const pwrPlan = planSlices(pwrWt, pwrMax, s.pwrOverride, s.pwrAxis);
   const sig = buildBranches(s.cols, s.rows, sigPlan, s.sigH, s.sigV);
   const pwr = buildBranches(s.cols, s.rows, pwrPlan, s.pwrH, s.pwrV);
-  const peakW = cabs * s.cabPeak, avgW = peakW * s.avgPct / 100;
-  const circuits = pwr.branches.map((b, i) => {
-    const n = b.cells.length;
-    return { idx: i, n, peakW: n * s.cabPeak, avgW: n * s.cabPeak * s.avgPct / 100, phase: 0 };
-  });
+  sig.branches.forEach(b => { b.px = b.cells.reduce((a, p) => a + pxC[p.c] * pxR[p.r], 0); });
+  pwr.branches.forEach(b => { b.w = b.cells.reduce((a, p) => a + pwrWt[p.r][p.c], 0); });
+  const peakW = pwrWt.flat().reduce((a, v) => a + v, 0) * s.cabPeak, avgW = peakW * s.avgPct / 100;
+  const circuits = pwr.branches.map((b, i) => (
+    { idx: i, n: b.cells.length, peakW: b.w * s.cabPeak, avgW: b.w * s.cabPeak * s.avgPct / 100, phase: 0 }));
+  const sumW = colW.reduce((a, v) => a + v, 0), sumH = rowH.reduce((a, v) => a + v, 0);
+  const mixed = new Set(colW).size > 1 || new Set(rowH).size > 1;
+  const mix = new Map();
+  rowH.forEach(h => colW.forEach(w => mix.set(w + 'x' + h, (mix.get(w + 'x' + h) || 0) + 1)));
+  const sizes = [...mix].map(([k, n]) => { const [w, h] = k.split('x').map(Number); return { w, h, n }; }).sort((a, b) => b.n - a.n);
   const warnings = [];
+  if (s.colBad) warnings.push(['warn', t('Invalid column widths: uniform grid used.')]);
+  if (s.rowBad) warnings.push(['warn', t('Invalid row heights: uniform grid used.')]);
   if (!sigPlan.fits) warnings.push(['bad', t('Signal: {0} cabinets per port exceeds the {1}-cabinet port capacity ({2} px).', sigPlan.maxSlice, sigMax, s.portPx)]);
   if (sigPlan.clamped) warnings.push(['warn', t('Signal port override reduced to {0} (axis limit).', sigPlan.M)]);
   if (!pwrPlan.fits) warnings.push(['bad', t('Power: {0} cabinets per circuit exceeds the {1}-cabinet limit for {2} A with {3}% headroom.', pwrPlan.maxSlice, pwrMax, s.breaker, s.headroom)]);
@@ -416,9 +486,9 @@ function compute(S, project) {
   if (!sigPlan.even) warnings.push(['warn', t('Signal ports cannot be sliced evenly ({0}).', sigPlan.sizes.join('-'))]);
   if (!pwrPlan.even) warnings.push(['warn', t('Power circuits cannot be sliced evenly ({0}).', pwrPlan.sizes.join('-'))]);
   return {
-    s, pv, cabs, pxW, pxH, resW: pxW * s.cols, resH: pxH * s.rows,
-    widthM: s.cols * s.cabW / 1000, heightM: s.rows * s.cabH / 1000,
-    areaM2: s.cols * s.cabW * s.rows * s.cabH / 1e6,
+    s, pv, cabs, pxW, pxH, colW, rowH, mixed, sizes,
+    resW: pxC.reduce((a, v) => a + v, 0), resH: pxR.reduce((a, v) => a + v, 0),
+    widthM: sumW / 1000, heightM: sumH / 1000, areaM2: sumW * sumH / 1e6,
     sigMax, pwrMax, usableA, sigPlan, pwrPlan, sig, pwr, circuits,
     peakW, avgW,
     sigJumpers: sig.branches.reduce((a, b) => a + b.cells.length - 1, 0),
@@ -660,12 +730,23 @@ const THEMES = {
 };
 const branchColor = (i, T) => `hsl(${(i * 137.5 + 200) % 360} ${T.sat}% ${T.lig}%)`;
 
+/* cw / ch are the smallest cell sizes (used to scale fonts and lines); X/Y/wc/hr give per-cell geometry. */
 function layoutGeom(C, box, margin) {
-  const { cols, rows, cabW, cabH } = C.s;
+  const { colW, rowH } = C;
   const aw = box.w - margin * 2, ah = box.h - margin * 2;
-  const sc = Math.max(1e-6, Math.min(aw / (cols * cabW), ah / (rows * cabH)));
-  const cw = cabW * sc, ch = cabH * sc;
-  return { cw, ch, ox: box.x + (box.w - cw * cols) / 2, oy: box.y + (box.h - ch * rows) / 2 };
+  const sumW = colW.reduce((a, v) => a + v, 0), sumH = rowH.reduce((a, v) => a + v, 0);
+  const sc = Math.max(1e-6, Math.min(aw / sumW, ah / sumH));
+  const xs = [0], ys = [0];
+  colW.forEach(w => xs.push(xs[xs.length - 1] + w * sc));
+  rowH.forEach(h => ys.push(ys[ys.length - 1] + h * sc));
+  const tw = sumW * sc, th = sumH * sc, ox = box.x + (box.w - tw) / 2, oy = box.y + (box.h - th) / 2;
+  return {
+    cw: Math.min(...colW) * sc, ch: Math.min(...rowH) * sc, ox, oy, tw, th, xs, ys,
+    X: (c, rear) => rear ? ox + tw - xs[c + 1] : ox + xs[c],
+    Y: r => oy + ys[r],
+    wc: c => xs[c + 1] - xs[c],
+    hr: r => ys[r + 1] - ys[r]
+  };
 }
 
 function drawBoundaries(ctx, C, g, rear, grid, inset, color, lw, dash) {
@@ -674,16 +755,24 @@ function drawBoundaries(ctx, C, g, rear, grid, inset, color, lw, dash) {
   ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.setLineDash(dash || []); ctx.lineCap = 'round';
   ctx.beginPath();
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const id = grid[r][c].b, x = g.ox + (rear ? cols - 1 - c : c) * g.cw, y = g.oy + r * g.ch;
+    const id = grid[r][c].b, x = g.X(c, rear), y = g.Y(r), cw = g.wc(c), ch = g.hr(r);
     const nb = (dc, dr) => { const nc = c + dc, nr = r + dr; return (nc < 0 || nr < 0 || nc >= cols || nr >= rows) ? -1 : grid[nr][nc].b; };
-    if (nb(0, -1) !== id) { ctx.moveTo(x, y + inset); ctx.lineTo(x + g.cw, y + inset); }
-    if (nb(0, 1) !== id) { ctx.moveTo(x, y + g.ch - inset); ctx.lineTo(x + g.cw, y + g.ch - inset); }
+    if (nb(0, -1) !== id) { ctx.moveTo(x, y + inset); ctx.lineTo(x + cw, y + inset); }
+    if (nb(0, 1) !== id) { ctx.moveTo(x, y + ch - inset); ctx.lineTo(x + cw, y + ch - inset); }
     const leftId = rear ? nb(1, 0) : nb(-1, 0), rightId = rear ? nb(-1, 0) : nb(1, 0);
-    if (leftId !== id) { ctx.moveTo(x + inset, y); ctx.lineTo(x + inset, y + g.ch); }
-    if (rightId !== id) { ctx.moveTo(x + g.cw - inset, y); ctx.lineTo(x + g.cw - inset, y + g.ch); }
+    if (leftId !== id) { ctx.moveTo(x + inset, y); ctx.lineTo(x + inset, y + ch); }
+    if (rightId !== id) { ctx.moveTo(x + cw - inset, y); ctx.lineTo(x + cw - inset, y + ch); }
   }
   ctx.stroke();
   ctx.restore();
+}
+
+/* "16 × 500 mm" for a uniform axis, or "4 × 1000 + 8 × 500 mm" for strips of different sizes. */
+function axisDesc(arr, n) {
+  const groups = [];
+  arr.forEach(v => { const l = groups[groups.length - 1]; if (l && l[0] === v) l[1]++; else groups.push([v, 1]); });
+  if (groups.length === 1) return `${n} × ${arr[0]} ${t('mm')}`;
+  return groups.map(([v, k]) => `${k} × ${v}`).join(' + ') + ' ' + t('mm');
 }
 
 /* Vector lightning bolt (renders identically at any scale, unlike an emoji glyph). */
@@ -699,8 +788,7 @@ function drawBolt(ctx, x, y, size, fill, stroke) {
 }
 
 function drawRoute(ctx, C, g, rear, B, color, off, lw, prefix, dash, T, fs) {
-  const { cols } = C.s;
-  const pt = p => ({ x: g.ox + ((rear ? cols - 1 - p.c : p.c) + 0.5) * g.cw + off, y: g.oy + (p.r + 0.5) * g.ch + off });
+  const pt = p => ({ x: g.X(p.c, rear) + g.wc(p.c) / 2 + off, y: g.Y(p.r) + g.hr(p.r) / 2 + off });
   const hs = clamp(Math.min(g.cw, g.ch) * 0.16, 4, 40);
   ctx.save();
   ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -756,16 +844,16 @@ function drawLayout(ctx, C, box, o) {
   ctx.textBaseline = 'middle';
 
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const x = g.ox + (rear ? cols - 1 - c : c) * g.cw, y = g.oy + r * g.ch;
+    const x = g.X(c, rear), y = g.Y(r), cw = g.wc(c), ch = g.hr(r);
     let fill = T.empty;
     if (o.fill === 'signal') fill = branchColor(C.sig.grid[r][c].b, T);
     else if (o.fill === 'power') fill = branchColor(C.pwr.grid[r][c].b, T);
     else if (o.fill === 'phase') fill = PHASE_COL[C.circuits[C.pwr.grid[r][c].b].phase] + (o.theme === 'light' ? '99' : 'aa');
-    ctx.fillStyle = fill; ctx.fillRect(x, y, g.cw, g.ch);
-    ctx.strokeStyle = T.cellStroke; ctx.lineWidth = Math.max(0.5, lw * 0.3); ctx.strokeRect(x, y, g.cw, g.ch);
-    if (o.labels && g.cw > 34 && g.ch > 22) {
+    ctx.fillStyle = fill; ctx.fillRect(x, y, cw, ch);
+    ctx.strokeStyle = T.cellStroke; ctx.lineWidth = Math.max(0.5, lw * 0.3); ctx.strokeRect(x, y, cw, ch);
+    if (o.labels && cw > 34 && ch > 22) {
       ctx.fillStyle = T.text; ctx.globalAlpha = 0.6; ctx.font = `${fs * 0.75}px system-ui,sans-serif`;
-      ctx.textAlign = 'center'; ctx.fillText(`${c + 1}.${r + 1}`, x + g.cw / 2, y + g.ch - fs * 0.7);
+      ctx.textAlign = 'center'; ctx.fillText(`${c + 1}.${r + 1}`, x + cw / 2, y + ch - fs * 0.7);
       ctx.globalAlpha = 1;
     }
   }
@@ -782,18 +870,17 @@ function drawLayout(ctx, C, box, o) {
   ctx.fillStyle = T.mut; ctx.font = `${af}px system-ui,sans-serif`; ctx.textAlign = 'center';
   const stepX = Math.max(1, Math.ceil((af * 2.2) / g.cw)), stepY = Math.max(1, Math.ceil((af * 1.6) / g.ch));
   for (let i = 0; i < cols; i++) if (i % stepX === 0 || i === cols - 1) {
-    const sx = rear ? cols - 1 - i : i;
-    ctx.fillText(String(i + 1), g.ox + (sx + 0.5) * g.cw, g.oy - af * 0.9);
+    ctx.fillText(String(i + 1), g.X(i, rear) + g.wc(i) / 2, g.oy - af * 0.9);
   }
   ctx.textAlign = rear ? 'left' : 'right';
-  const axX = rear ? g.ox + cols * g.cw + af * 0.5 : g.ox - af * 0.5;
-  for (let i = 0; i < rows; i++) if (i % stepY === 0 || i === rows - 1) ctx.fillText(String(i + 1), axX, g.oy + (i + 0.5) * g.ch);
+  const axX = rear ? g.ox + g.tw + af * 0.5 : g.ox - af * 0.5;
+  for (let i = 0; i < rows; i++) if (i % stepY === 0 || i === rows - 1) ctx.fillText(String(i + 1), axX, g.Y(i) + g.hr(i) / 2);
   ctx.textAlign = 'center'; ctx.fillStyle = T.text; ctx.font = `bold ${af * 1.1}px system-ui,sans-serif`;
-  ctx.fillText(`${f2(C.widthM)} ${t('m')}  (${cols} × ${C.s.cabW} ${t('mm')})`, g.ox + cols * g.cw / 2, g.oy + rows * g.ch + af * 1.4);
+  ctx.fillText(`${f2(C.widthM)} ${t('m')}  (${axisDesc(C.colW, cols)})`, g.ox + g.tw / 2, g.oy + g.th + af * 1.4);
   ctx.save();
-  const dimX = rear ? g.ox - af * 1.2 : g.ox + cols * g.cw + af * 1.2;
-  ctx.translate(dimX, g.oy + rows * g.ch / 2); ctx.rotate(-Math.PI / 2);
-  ctx.fillText(`${f2(C.heightM)} ${t('m')}  (${rows} × ${C.s.cabH} ${t('mm')})`, 0, 0);
+  const dimX = rear ? g.ox - af * 1.2 : g.ox + g.tw + af * 1.2;
+  ctx.translate(dimX, g.oy + g.th / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText(`${f2(C.heightM)} ${t('m')}  (${axisDesc(C.rowH, rows)})`, 0, 0);
   ctx.restore();
 
   const ts = o.title || 14;
@@ -801,8 +888,8 @@ function drawLayout(ctx, C, box, o) {
   ctx.fillText(rear ? t('REAR VIEW (RIGGING) — mirrored horizontally') : t('FRONT VIEW (audience side)'), box.x + ts * 0.8, box.y + ts * 1.1);
 
   if (o.hover) {
-    const hx = g.ox + (rear ? cols - 1 - o.hover.c : o.hover.c) * g.cw, hy = g.oy + o.hover.r * g.ch;
-    ctx.strokeStyle = T.hl; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(hx + 1, hy + 1, g.cw - 2, g.ch - 2);
+    const hx = g.X(o.hover.c, rear), hy = g.Y(o.hover.r);
+    ctx.strokeStyle = T.hl; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(hx + 1, hy + 1, g.wc(o.hover.c) - 2, g.hr(o.hover.r) - 2);
   }
 
   if (o.legend) {
@@ -824,12 +911,14 @@ function drawLayout(ctx, C, box, o) {
 const entryName = (v, h) => `${t(v)}-${t(h)}`;
 const axisName = p => p.axis === 'cols' ? t('columns') : t('rows');
 const slicePattern = p => p.sizes.join('-');
+const mixDesc = C => C.sizes.map(z => `${z.n} × ${z.w}x${z.h}`).join(', ') + ' ' + t('mm');
 const phStr = (ph, key, unit) => ph.map((q, i) => `${PHASE_NAME[i]} ${f1(q[key])}${unit || ''}`).join(' | ');
 
 function screenSpec(C, idx) {
   const s = C.s, L = [], I = '  ';
   L.push(`${idx != null ? (idx + 1) + '. ' : ''}${s.name}`);
-  L.push(I + t('Size: {0} x {1} m ({2} m2), {3} x {4} = {5} cabinets {6}x{7} mm', f2(C.widthM), f2(C.heightM), f2(C.areaM2), s.cols, s.rows, C.cabs, s.cabW, s.cabH));
+  L.push(I + t('Size: {0} x {1} m ({2} m2), {3} x {4} = {5} cabinets {6}x{7} mm', f2(C.widthM), f2(C.heightM), f2(C.areaM2), s.cols, s.rows, C.cabs, C.colW[0], C.rowH[0]));
+  if (C.mixed) L.push(I + t('Cabinet mix: {0}', mixDesc(C)));
   L.push(I + t('Pixel pitch: {0} mm, resolution {1} x {2} px ({3} MP)', s.pitch, C.resW, C.resH, (C.resW * C.resH / 1e6).toFixed(2)));
   L.push(I + t('Power: peak {0} kW / working {1} kW ({2}%), {3} W per cabinet', f2(C.peakW / 1000), f2(C.avgW / 1000), s.avgPct, s.cabPeak));
   L.push(I + t('Circuits: {0} x {1} A (headroom {2}%, sized on {3} load), {4} {5}', C.circuits.length, s.breaker, s.headroom, t(s.sizeBy === 'peak' ? 'peak' : 'working'), slicePattern(C.pwrPlan), axisName(C.pwrPlan)));
@@ -878,8 +967,10 @@ const FORM = [
     ['tW', 'Target width, m', 'number', '', { min: 0.1, step: 0.1 }],
     ['tH', 'Target height, m', 'number', '', { min: 0.1, step: 0.1 }],
     ['cols', 'Columns', 'number', '', { min: 1, max: 200, step: 1 }],
-    ['rows', 'Rows', 'number', '', { min: 1, max: 200, step: 1 }]
-  ], note: 'Target size auto-calculates the grid (rounded to whole cabinets). Editing the grid updates the size.' },
+    ['rows', 'Rows', 'number', '', { min: 1, max: 200, step: 1 }],
+    ['colSpec', 'Mixed column widths, mm', 'text', 'w', { placeholder: '4x1000, 8x500' }],
+    ['rowSpec', 'Mixed row heights, mm', 'text', 'w', { placeholder: '8x500' }]
+  ], note: 'Target size auto-calculates the grid (rounded to whole cabinets). Editing the grid updates the size. To mix cabinet sizes, list strips as count x size (e.g. 4x1000, 8x500): a cabinet is column width x row height, and its power and pixels scale from the base cabinet above.' },
   { t: '⚡ Power & phases', open: true, f: [
     ['avgPct', 'Working load, % of peak', 'number', '', { min: 5, max: 100, step: 1 }],
     ['breaker', 'Breaker', 'select', '', [['16', '16 A'], ['32', '32 A']]],
@@ -904,7 +995,7 @@ function buildForm() {
     sec.f.map(([k, label, type, cls, extra]) => {
       let inp;
       if (type === 'select') inp = `<select data-k="${k}">${extra.map(([v, l]) => `<option value="${v}">${t(l)}</option>`).join('')}</select>`;
-      else inp = `<input data-k="${k}" type="${type}" ${type === 'number' ? Object.entries(extra || {}).map(([a, b]) => `${a}="${b}"`).join(' ') : ''}>`;
+      else inp = `<input data-k="${k}" type="${type}" ${Object.entries(extra || {}).map(([a, b]) => `${a}="${b}"`).join(' ')}>`;
       return `<div class="f ${cls}"><label>${t(label)}</label>${inp}</div>`;
     }).join('') + `</div>${sec.note ? `<div class="note">${t(sec.note)}</div>` : ''}</details>`).join('');
 }
@@ -919,8 +1010,16 @@ function syncForm() {
 
 const NUMERIC = ['cabW', 'cabH', 'pitch', 'cabPeak', 'tW', 'tH', 'cols', 'rows', 'avgPct', 'breaker', 'headroom', 'portPx', 'sigOverride', 'pwrOverride'];
 function regrid(s) {
-  s.cols = clamp(Math.round(s.tW * 1000 / s.cabW), 1, 200);
-  s.rows = clamp(Math.round(s.tH * 1000 / s.cabH), 1, 200);
+  if (!parseSpecOk(s.colSpec)) s.cols = clamp(Math.round(s.tW * 1000 / s.cabW), 1, 200);
+  if (!parseSpecOk(s.rowSpec)) s.rows = clamp(Math.round(s.tH * 1000 / s.cabH), 1, 200);
+}
+const parseSpecOk = spec => Array.isArray(parseSpec(spec));
+/* Re-derives cols/rows and the target size from the cleaned screen (specs define the grid when present). */
+function syncSize(s) {
+  const c = clean(s);
+  s.cols = c.cols; s.rows = c.rows;
+  s.tW = +(c.colW.reduce((a, v) => a + v, 0) / 1000).toFixed(3);
+  s.tH = +(c.rowH.reduce((a, v) => a + v, 0) / 1000).toFixed(3);
 }
 function setField(k, raw) {
   const s = active();
@@ -935,11 +1034,11 @@ function setField(k, raw) {
       break;
     case 'cabW': case 'cabH':
       s.preset = 'custom'; regrid(s); break;
-    case 'tW': case 'tH': regrid(s); break;
-    case 'cols': case 'rows': {
-      const c = clean(s);
-      s.tW = +(c.cols * c.cabW / 1000).toFixed(3); s.tH = +(c.rows * c.cabH / 1000).toFixed(3); break;
-    }
+    case 'tW': s.colSpec = ''; regrid(s); break;
+    case 'tH': s.rowSpec = ''; regrid(s); break;
+    case 'cols': s.colSpec = ''; syncSize(s); break;
+    case 'rows': s.rowSpec = ''; syncSize(s); break;
+    case 'colSpec': case 'rowSpec': if (!String(s[k]).trim() || parseSpecOk(s[k])) syncSize(s); break;
   }
   syncForm();
   render();
@@ -1002,6 +1101,7 @@ function renderSummary() {
     ${msgs}
     ${kv([
       [t('Size'), t('{0} × {1} m · {2}×{3} cab', f2(C.widthM), f2(C.heightM), s.cols, s.rows)],
+      ...(C.mixed ? [[t('Cabinet mix'), mixDesc(C)]] : []),
       [t('Resolution'), `${C.resW} × ${C.resH} ${t('px')}`],
       [t('Power peak / working'), `${f2(C.peakW / 1000)} / ${f2(C.avgW / 1000)} ${KW}`],
       [t('Phase voltage'), `${pv} ${t('V')}`],
@@ -1039,10 +1139,10 @@ function cellAt(ev) {
   const C = activeCalc(), rect = cv.getBoundingClientRect();
   const g = layoutGeom(C, { x: 0, y: 0, w: rect.width, h: rect.height }, 44);
   const px = (ev.clientX - rect.left - view.x) / view.z, py = (ev.clientY - rect.top - view.y) / view.z;
-  const sc = Math.floor((px - g.ox) / g.cw), r = Math.floor((py - g.oy) / g.ch);
-  const { cols, rows } = C.s;
-  if (sc < 0 || r < 0 || sc >= cols || r >= rows) return null;
-  return { c: state.ui.view === 'rear' ? cols - 1 - sc : sc, r };
+  const rear = state.ui.view === 'rear', lx = px - g.ox, ly = py - g.oy;
+  if (lx < 0 || ly < 0 || lx >= g.tw || ly >= g.th) return null;
+  const find = (arr, v) => { let i = 0; while (i < arr.length - 2 && arr[i + 1] <= v) i++; return i; };
+  return { c: find(g.xs, rear ? g.tw - lx : lx), r: find(g.ys, ly) };
 }
 let drag = null;
 cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; cv.setPointerCapture(e.pointerId); cv.classList.add('drag'); });
@@ -1094,7 +1194,7 @@ function drawRouteTable(g, C, mode, x, y, w, h) {
     g.fillStyle = '#000';
     g.fillText(String(b.cells.length), cx[1], yy);
     g.fillText(`${t('col')} ${st.c + 1} / ${t('row')} ${st.r + 1}`, cx[2], yy);
-    if (isSig) g.fillText(String(b.cells.length * C.pxW * C.pxH), cx[3], yy);
+    if (isSig) g.fillText(String(b.px), cx[3], yy);
     else {
       const c = C.circuits[i], a = `${f1(c.peakA)} ${t('A')}  `;
       g.fillText(a, cx[3], yy);
@@ -1140,7 +1240,7 @@ function renderBlueprint(C, sheet, total, mode) {
   const A = t('A');
   const kind = mode === 'sig' ? 'Signal routing sheet' : mode === 'pwr' ? '⚡ Power routing sheet' : 'Combined routing sheet';
   const cHead = ['LED CALC PRO', t('Project: {0}', p.name), t('Venue: {0}', p.venue || '-'), t('Screen: {0}', s.name), t('Drawn by: {0}', p.author || '-')];
-  const cScr = [t('SCREEN'), t('Size: {0} x {1} m', f2(C.widthM), f2(C.heightM)), t('Grid: {0} x {1} = {2} cab', s.cols, s.rows, C.cabs), t('Cabinet: {0} x {1} mm', s.cabW, s.cabH), t('Pitch {0} mm · {1}x{2} px', s.pitch, C.resW, C.resH)];
+  const cScr = [t('SCREEN'), t('Size: {0} x {1} m', f2(C.widthM), f2(C.heightM)), t('Grid: {0} x {1} = {2} cab', s.cols, s.rows, C.cabs), C.mixed ? t('Cabinet mix: {0}', mixDesc(C)) : t('Cabinet: {0} x {1} mm', C.colW[0], C.rowH[0]), t('Pitch {0} mm · {1}x{2} px', s.pitch, C.resW, C.resH)];
   const sigTxt = [t('Signal: {0} ports · {1} {2}', C.sigPlan.M, slicePattern(C.sigPlan), axisName(C.sigPlan)), t('Signal entry: {0} (front)', entryName(s.sigV, s.sigH)), t('RJ45 jumpers: {0}', C.sigJumpers), t('Max {0} cab / port', C.sigMax)];
   const pwrTxt = [t('{0} x {1} A · {2} V 3ph', C.circuits.length, s.breaker, p.voltage), t('Peak A: {0}', C.phases.map(q => f1(q.peakA)).join(' / ')), t('Slices: {0} {1}', slicePattern(C.pwrPlan), axisName(C.pwrPlan)), t('⚡ Power IN: {0} (front)', entryName(s.pwrV, s.pwrH))];
   const cPow = [t('POWER'), t('Peak {0} kW · Work {1} kW', f2(C.peakW / 1000), f2(C.avgW / 1000)), pwrTxt[0], pwrTxt[1], pwrTxt[2]];
