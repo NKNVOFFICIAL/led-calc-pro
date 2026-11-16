@@ -57,6 +57,15 @@ summary{cursor:pointer;padding:7px 9px;font-weight:600;font-size:13px}
 #cwrap{position:relative;flex:none;height:calc(100vh - 130px);min-height:420px;background:#0a0e14;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 #cv{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none}
 #cv.drag{cursor:grabbing}
+#help{position:fixed;inset:0;background:#000a;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto}
+#help[hidden]{display:none}
+.hbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;max-width:820px;width:100%}
+.hhead{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);border-radius:10px 10px 0 0}
+#helpBody{padding:6px 18px 18px;font-size:14px;line-height:1.55}
+#helpBody h3{color:var(--acc);margin:18px 0 6px;font-size:15px}
+#helpBody ul,#helpBody ol{margin:4px 0;padding-left:22px}
+#helpBody code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:13px}
+#helpBody .tip{background:var(--panel2);border-left:3px solid var(--pwr);padding:6px 10px;margin:8px 0;border-radius:4px}
 #tip{position:absolute;pointer-events:none;background:#000d;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12px;display:none;white-space:pre;z-index:3}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--mut)}
 .legend i{display:inline-block;width:22px;height:0;border-top:3px solid;vertical-align:middle;margin-right:5px}
@@ -99,11 +108,13 @@ textarea#spec{height:420px;font-family:ui-monospace,Consolas,monospace;font-size
     </select></div>
   <div class="spacer"></div>
   <div class="hf" style="min-width:90px"><label data-i18n>Language</label><select id="langSel"><option value="en">English</option><option value="ru">Русский</option></select></div>
+  <button class="btn" id="btnHelp" data-i18n>Help</button>
   <button class="btn" id="btnImport" data-i18n>Import .ledmask</button>
   <button class="btn" id="btnSample" data-i18n>Sample .ledmask</button>
   <button class="btn" id="btnReset" data-i18n>Reset</button>
   <input type="file" id="fileIn" accept=".ledmask,.json,.txt" hidden>
 </header>
+<div id="help" hidden><div class="hbox"><div class="hhead"><b id="helpTitle"></b><button class="btn" id="helpClose"></button></div><div id="helpBody"></div></div></div>
 
 <main>
   <aside class="col" id="left">
@@ -190,7 +201,7 @@ const PHASE_NAME = ['L1', 'L2', 'L3'];
 const RU = {
 'Language':'Язык','Project':'Проект','Venue':'Площадка','Drawn by':'Чертёж выполнил','Mains supply':'Питающая сеть',
 '380 V 3-phase (220 V per phase)':'380 В, 3 фазы (220 В на фазу)','220 V 3-phase (127 V per phase)':'220 В, 3 фазы (127 В на фазу)',
-'Import .ledmask':'Импорт .ledmask','Sample .ledmask':'Пример .ledmask','Reset':'Сброс','Screens':'Экраны','+ Add':'+ Добавить',
+'Help':'Инструкция','Close':'Закрыть','Import .ledmask':'Импорт .ledmask','Sample .ledmask':'Пример .ledmask','Reset':'Сброс','Screens':'Экраны','+ Add':'+ Добавить',
 'Front View':'Вид спереди','Rear View (Rigging)':'Вид сзади (риггинг)',
 'Colour: signal ports':'Цвет: порты сигнала','Colour: power circuits':'Цвет: цепи питания','Colour: phase L1/L2/L3':'Цвет: фазы L1/L2/L3','Colour: none':'Цвет: нет',
 'Signal':'Сигнал','⚡ Power':'⚡ Питание','Labels':'Подписи','Fit':'Вписать',
@@ -1495,6 +1506,76 @@ function importText(text) {
   return r.screens.length;
 }
 
+
+/* ============================ Help ============================ */
+const HELP = {
+  en: {
+    title: 'How to use LED Calc Pro',
+    html: `
+<h3>1. Quick start</h3>
+<ol><li>Add screens in the <b>Screens</b> list (<code>+ Add</code>, duplicate or delete with the icons).</li>
+<li>Pick a cabinet preset (500×500, 500×1000, 960×960 or custom), pixel pitch and peak power per cabinet.</li>
+<li>Enter the target width/height in metres: the grid (columns × rows) is calculated automatically. You can also type columns/rows directly.</li>
+<li>Set the mains supply (380 V or 220 V), working load %, breaker (16 A / 32 A) and safety headroom.</li>
+<li>Choose where signal and power enter the screen, check the diagram, then export.</li></ol>
+<h3>2. Mixed cabinet sizes</h3>
+<p>Use <b>Mixed column widths</b> / <b>Mixed row heights</b> to combine, for example, 1 m and 0.5 m modules in one screen. Format: <code>4x1000, 8x500</code> (count × size in mm) or <code>0.5, 1, 1, 0.5</code> (metres). A cabinet = column width × row height; power and pixels scale from the base cabinet by area. Editing target size or cols/rows clears the list for that axis. Decimals use a dot.</p>
+<h3>3. Power</h3>
+<ul><li>Peak and working (30–40 %) power, current per phase L1/L2/L3.</li>
+<li>Circuits are sliced by whole columns or rows (<b>Slice by</b>) so branches are symmetrical. Set <b>Circuits</b> to override the automatic count (0 = auto).</li>
+<li>The ⚡ badge marks Power IN of each circuit. <b>Power IN</b> corner is set separately from signal.</li></ul>
+<h3>4. Signal (RJ45)</h3>
+<p>Ports are sliced by whole columns/rows (e.g. 16×8 on 8 ports = 2-2-2-2-2-2-2-2). Set the port count manually to override. Choose the signal entry corner (top/bottom, left/right) separately.</p>
+<h3>5. Canvas</h3>
+<ul><li><b>Front View</b> is the audience side; <b>Rear View (Rigging)</b> is mirrored horizontally.</li>
+<li>Mouse: drag to pan, wheel to zoom, double-click to fit. Touch: one finger to pan, pinch to zoom, double-tap to fit.</li>
+<li>Hover a cabinet to see its port, circuit and phase. Toggle Signal / Power / Labels with the checkboxes and change the colouring in the dropdown.</li></ul>
+<h3>6. Summary, spec and export</h3>
+<ul><li><b>Summary</b>: venue totals (power, phases, breakers, ports, jumpers) and per-screen details with warnings.</li>
+<li><b>Tech spec</b>: plain text, <code>Copy</code> for messengers or save as .txt.</li>
+<li><b>PNG / PDF A4</b>: blueprint with title block. With several screens there is an overview sheet; the export mode selects separate signal and power sheets or combined sheets. PNG gives a ZIP when there are multiple sheets, PDF is one multi-page file.</li></ul>
+<h3>7. Import and saving</h3>
+<ul><li><code>Import .ledmask</code> loads screens from LED Mask Generator files (and JSON/INI). <code>Sample .ledmask</code> downloads an example.</li>
+<li>Everything is saved automatically in your browser (localStorage). <code>Reset</code> deletes the project.</li></ul>
+<div class="tip">Tip: add the page to your phone home screen to open the calculator from anywhere.</div>`
+  },
+  ru: {
+    title: 'Как пользоваться LED Calc Pro',
+    html: `
+<h3>1. Быстрый старт</h3>
+<ol><li>Добавьте экраны в списке <b>Экраны</b> (<code>+ Добавить</code>, дублирование и удаление иконками).</li>
+<li>Выберите пресет кабинета (500×500, 500×1000, 960×960 или свой), шаг пикселя и пиковую мощность кабинета.</li>
+<li>Введите нужные ширину и высоту в метрах: сетка (колонки × строки) посчитается сама. Колонки и строки можно задать и вручную.</li>
+<li>Укажите питание (380 В или 220 В), рабочую нагрузку в %, автомат (16 А / 32 А) и запас.</li>
+<li>Выберите точки входа сигнала и питания, проверьте схему и сделайте экспорт.</li></ol>
+<h3>2. Разные модули в одном экране</h3>
+<p>Поля <b>Смешанные ширины столбцов</b> / <b>Смешанные высоты строк</b> позволяют соединять, например, метровые и полуметровые модули. Формат: <code>4x1000, 8x500</code> (количество × размер в мм) или <code>0.5, 1, 1, 0.5</code> (в метрах). Кабинет = ширина колонки × высота строки; мощность и пиксели считаются от базового кабинета по площади. Если изменить целевой размер или колонки/строки, список по этой оси очистится. Дроби пишутся через точку.</p>
+<h3>3. Питание</h3>
+<ul><li>Пиковая и рабочая (30–40 %) мощность, ток по фазам L1/L2/L3.</li>
+<li>Цепи режутся по целым колонкам или строкам (<b>Делить по</b>), поэтому ветки симметричны. Поле <b>Цепей</b> задаёт число цепей вручную (0 = авто).</li>
+<li>Значок ⚡ показывает вход питания (Power IN) каждой цепи. Угол входа питания задаётся отдельно от сигнала.</li></ul>
+<h3>4. Сигнал (RJ45)</h3>
+<p>Порты режутся по целым колонкам/строкам (например, 16×8 на 8 портов = 2-2-2-2-2-2-2-2). Число портов можно задать вручную. Угол входа сигнала (сверху/снизу, слева/справа) выбирается отдельно.</p>
+<h3>5. Схема (canvas)</h3>
+<ul><li><b>Вид спереди</b> — со стороны зрителя; <b>Вид сзади (риггинг)</b> — зеркально по горизонтали.</li>
+<li>Мышь: перетаскивание — сдвиг, колесо — масштаб, двойной клик — вписать. Телефон: один палец — сдвиг, два пальца (pinch) — масштаб, двойной тап — вписать.</li>
+<li>Наведите на кабинет, чтобы увидеть порт, цепь и фазу. Сигнал / питание / подписи включаются галочками, раскраска — в выпадающем списке.</li></ul>
+<h3>6. Сводка, спецификация, экспорт</h3>
+<ul><li><b>Сводка</b>: итоги по площадке (мощность, фазы, автоматы, порты, джамперы) и данные по каждому экрану с предупреждениями.</li>
+<li><b>Тех. описание</b>: обычный текст, кнопка копирования для мессенджеров или сохранение в .txt.</li>
+<li><b>PNG / PDF A4</b>: чертёж со штампом. Если экранов несколько, добавляется обзорный лист; режим экспорта выбирает раздельные листы сигнала и питания или совмещённые. PNG при нескольких листах отдаётся ZIP-архивом, PDF — одним многостраничным файлом.</li></ul>
+<h3>7. Импорт и сохранение</h3>
+<ul><li><code>Импорт .ledmask</code> загружает экраны из файлов LED Mask Generator (а также JSON/INI). <code>Пример .ledmask</code> скачивает образец.</li>
+<li>Всё сохраняется автоматически в браузере (localStorage). Кнопка <code>Сброс</code> удаляет проект.</li></ul>
+<div class="tip">Совет: добавьте страницу на главный экран телефона, чтобы открывать калькулятор откуда угодно.</div>`
+  }
+};
+function openHelp(on) {
+  const hp = $('#help'), d = HELP[lang] || HELP.en;
+  $('#helpTitle').textContent = d.title; $('#helpBody').innerHTML = d.html; $('#helpClose').textContent = t('Close');
+  hp.hidden = !on;
+}
+
 function bind() {
   $('#form').addEventListener('input', e => { const el = e.target.closest('[data-k]'); if (el) setField(el.dataset.k, el.value); });
   $$('[data-p]').forEach(el => el.addEventListener('input', () => { state.project[el.dataset.p] = el.value; render(); }));
@@ -1520,7 +1601,11 @@ function bind() {
   $('#chkSig').onchange = e => { state.ui.sig = e.target.checked; requestDraw(); saveState(); };
   $('#chkPwr').onchange = e => { state.ui.pwr = e.target.checked; requestDraw(); saveState(); };
   $('#chkLbl').onchange = e => { state.ui.labels = e.target.checked; requestDraw(); saveState(); };
-  $('#langSel').onchange = e => { lang = state.ui.lang = e.target.value; buildForm(); syncChrome(); syncForm(); render(); };
+  $('#langSel').onchange = e => { lang = state.ui.lang = e.target.value; buildForm(); syncChrome(); syncForm(); render(); if (!$('#help').hidden) openHelp(true); };
+  $('#btnHelp').onclick = () => openHelp(true);
+  $('#helpClose').onclick = () => openHelp(false);
+  $('#help').onclick = e => { if (e.target.id === 'help') openHelp(false); };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#help').hidden = true; });
   $('#btnFit').onclick = fitView;
   $('#btnPng').onclick = () => { try { exportPng(); } catch (e) { toast(t('PNG export failed: {0}', e.message), true); } };
   $('#btnPdf').onclick = () => { try { exportPdf(); } catch (e) { toast(t('PDF export failed: {0}', e.message), true); } };
