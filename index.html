@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LED Calc Pro — AV Engineering Calculator</title>
+<style>
+:root{
+  --bg:#0d1117;--panel:#151b23;--panel2:#1b232d;--line:#2a3441;--txt:#e6edf3;--mut:#8b98a8;
+  --acc:#3ea6ff;--sig:#5ee7ff;--pwr:#ffb347;--ok:#3fb950;--warn:#f0b429;--bad:#f85149;
+  --r:8px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-size:14px}
+body{display:flex;flex-direction:column;min-height:100vh}
+button,input,select,textarea{font:inherit;color:inherit}
+header{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+.logo{font-weight:800;letter-spacing:.5px;font-size:17px;white-space:nowrap}
+.logo b{color:var(--acc)}
+.hf{display:flex;flex-direction:column;gap:2px;min-width:120px}
+.hf label{font-size:10px;text-transform:uppercase;color:var(--mut);letter-spacing:.6px}
+.spacer{flex:1}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+input[type=checkbox]{width:auto;accent-color:var(--acc)}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 11px;cursor:pointer;white-space:nowrap;width:auto}
+.btn:hover{border-color:var(--acc)}
+.btn.pri{background:var(--acc);color:#04121f;border-color:var(--acc);font-weight:600}
+.btn.sm{padding:3px 7px;font-size:12px}
+.btn.on{border-color:var(--acc);background:#16334d}
+main{flex:1;display:grid;grid-template-columns:320px minmax(0,1fr) 400px;gap:10px;padding:10px;min-height:0}
+.col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px}
+.card h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--mut);display:flex;align-items:center;justify-content:space-between;gap:6px}
+.screens{display:flex;flex-direction:column;gap:5px;max-height:220px;overflow:auto}
+.sitem{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:var(--panel2)}
+.sitem.act{border-color:var(--acc);background:#14283b}
+.sitem .n{flex:1;min-width:0}
+.sitem .n b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sitem .n small{color:var(--mut)}
+details{border:1px solid var(--line);border-radius:6px;margin-bottom:6px;background:var(--panel2)}
+summary{cursor:pointer;padding:7px 9px;font-weight:600;font-size:13px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:4px 9px 10px}
+.fg .f{display:flex;flex-direction:column;gap:2px}
+.fg .f.w{grid-column:1/-1}
+.fg label{font-size:11px;color:var(--mut)}
+.note{font-size:11px;color:var(--mut);padding:0 9px 8px}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.toolbar .grp{display:flex;gap:0}
+.toolbar .grp .btn{border-radius:0}
+.toolbar .grp .btn:first-child{border-radius:6px 0 0 6px}
+.toolbar .grp .btn:last-child{border-radius:0 6px 6px 0}
+.toolbar label{display:flex;align-items:center;gap:4px;color:var(--mut);font-size:12px;cursor:pointer}
+.toolbar select{width:auto}
+#center{position:sticky;top:10px;align-self:start}
+#cwrap{position:relative;flex:none;height:calc(100vh - 130px);min-height:420px;background:#0a0e14;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none}
+#cv.drag{cursor:grabbing}
+#tip{position:absolute;pointer-events:none;background:#000d;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12px;display:none;white-space:pre;z-index:3}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--mut)}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid;vertical-align:middle;margin-right:5px}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tabs .btn{flex:1}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase}
+td.r,th.r{text-align:right}
+.kv td:first-child{color:var(--mut)}
+.kv td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.msg{padding:6px 8px;border-radius:6px;margin-bottom:5px;font-size:12px;border:1px solid}
+.msg.warn{background:#3a2e0a;border-color:#6b5410;color:#ffd966}
+.msg.bad{background:#3a1212;border-color:#7a2323;color:#ff9a94}
+.msg.ok{background:#0f2a17;border-color:#1f5a30;color:#8ee6a1}
+.ph{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0}
+.ph div{background:var(--panel2);border-radius:6px;padding:6px;border-top:3px solid;text-align:center}
+.ph b{display:block;font-size:15px}
+.ph small{color:var(--mut);font-size:11px}
+.bar{height:5px;background:var(--bg);border-radius:3px;margin-top:4px;overflow:hidden}
+.bar span{display:block;height:100%}
+textarea#spec{height:420px;font-family:ui-monospace,Consolas,monospace;font-size:12px;resize:vertical;white-space:pre}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#000e;border:1px solid var(--acc);padding:9px 16px;border-radius:8px;display:none;z-index:10;max-width:90vw}
+#toast.bad{border-color:var(--bad)}
+@media(max-width:1250px){main{grid-template-columns:300px minmax(0,1fr)}#right{grid-column:1/-1}}
+@media(max-width:800px){#center{position:static}}
+@media(max-width:800px){main{grid-template-columns:1fr}#cwrap{min-height:340px}.hf{min-width:100px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">LED<b>CALC</b> PRO</div>
+  <div class="hf"><label data-i18n>Project</label><input id="pName" data-p="name"></div>
+  <div class="hf"><label data-i18n>Venue</label><input id="pVenue" data-p="venue"></div>
+  <div class="hf"><label data-i18n>Drawn by</label><input id="pAuthor" data-p="author"></div>
+  <div class="hf" style="min-width:210px"><label data-i18n>Mains supply</label>
+    <select id="pVolt" data-p="voltage">
+      <option data-i18n value="380">380 V 3-phase (220 V per phase)</option>
+      <option data-i18n value="220">220 V 3-phase (127 V per phase)</option>
+    </select></div>
+  <div class="spacer"></div>
+  <div class="hf" style="min-width:90px"><label data-i18n>Language</label><select id="langSel"><option value="en">English</option><option value="ru">Русский</option></select></div>
+  <button class="btn" id="btnImport" data-i18n>Import .ledmask</button>
+  <button class="btn" id="btnSample" data-i18n>Sample .ledmask</button>
+  <button class="btn" id="btnReset" data-i18n>Reset</button>
+  <input type="file" id="fileIn" accept=".ledmask,.json,.txt" hidden>
+</header>
+
+<main>
+  <aside class="col" id="left">
+    <section class="card">
+      <h3><span data-i18n>Screens</span> <span><button class="btn sm" id="btnAdd" data-i18n>+ Add</button></span></h3>
+      <div class="screens" id="screens"></div>
+    </section>
+    <section class="card" id="form"></section>
+  </aside>
+
+  <section class="col" id="center">
+    <div class="toolbar">
+      <div class="grp">
+        <button class="btn" data-view="front" data-i18n>Front View</button>
+        <button class="btn" data-view="rear" data-i18n>Rear View (Rigging)</button>
+      </div>
+      <select id="fillSel" title="Cabinet colour coding">
+        <option data-i18n value="signal">Colour: signal ports</option>
+        <option data-i18n value="power">Colour: power circuits</option>
+        <option data-i18n value="phase">Colour: phase L1/L2/L3</option>
+        <option data-i18n value="none">Colour: none</option>
+      </select>
+      <label><input type="checkbox" id="chkSig"> <span data-i18n>Signal</span></label>
+      <label><input type="checkbox" id="chkPwr"> <span data-i18n>⚡ Power</span></label>
+      <label><input type="checkbox" id="chkLbl"> <span data-i18n>Labels</span></label>
+      <span class="spacer"></span>
+      <button class="btn" id="btnFit" data-i18n>Fit</button>
+      <select id="expSel" title="Export layout">
+        <option data-i18n value="split">Export: signal / power sheets</option>
+        <option data-i18n value="combined">Export: combined sheet</option>
+      </select>
+      <button class="btn pri" id="btnPng">PNG</button>
+      <button class="btn pri" id="btnPdf">PDF A4</button>
+    </div>
+    <div id="cwrap"><canvas id="cv"></canvas><div id="tip"></div></div>
+    <div class="legend">
+      <span><i style="border-color:var(--sig)"></i><span data-i18n>Signal snake (RJ45)</span></span>
+      <span><i style="border-color:var(--pwr);border-top-style:dashed"></i><span data-i18n>⚡ Power snake (PowerCON) — ⚡ marks Power IN</span></span>
+      <span><i style="border-color:#fff"></i><span data-i18n>Port boundary</span></span>
+      <span><i style="border-color:var(--pwr);border-top-style:dotted"></i><span data-i18n>Circuit boundary</span></span>
+      <span data-i18n style="margin-left:auto">Wheel: zoom · Drag: pan · Dbl-click: fit</span>
+    </div>
+  </section>
+
+  <aside class="col" id="right">
+    <section class="card">
+      <div class="tabs">
+        <button class="btn on" data-tab="sum" data-i18n>Summary</button>
+        <button class="btn" data-tab="spec" data-i18n>Tech spec</button>
+      </div>
+      <div id="tabSum"></div>
+      <div id="tabSpec" hidden>
+        <textarea id="spec" readonly spellcheck="false"></textarea>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="btn pri" id="btnCopy" data-i18n>Copy to clipboard</button>
+          <button class="btn" id="btnTxt" data-i18n>Download .txt</button>
+        </div>
+      </div>
+    </section>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ============================ Utilities ============================ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
+const pick = (v, list, d) => list.includes(v) ? v : d;
+const f1 = n => (Math.round(n * 10) / 10).toFixed(1);
+const f2 = n => (Math.round(n * 100) / 100).toFixed(2);
+let uidCounter = 0;
+const newId = () => 's' + Date.now().toString(36) + (uidCounter++).toString(36);
+const STD_FEEDS = [16, 32, 63, 125, 250, 400, 630, 800];
+const nextStd = a => STD_FEEDS.find(x => x >= a) || Math.ceil(a / 100) * 100;
+const PHASE_COL = ['#e5484d', '#3fb950', '#4c8dff'];
+const PHASE_NAME = ['L1', 'L2', 'L3'];
+
+/* ============================ i18n ============================ */
+const RU = {
+'Language':'Язык','Project':'Проект','Venue':'Площадка','Drawn by':'Чертёж выполнил','Mains supply':'Питающая сеть',
+'380 V 3-phase (220 V per phase)':'380 В, 3 фазы (220 В на фазу)','220 V 3-phase (127 V per phase)':'220 В, 3 фазы (127 В на фазу)',
+'Import .ledmask':'Импорт .ledmask','Sample .ledmask':'Пример .ledmask','Reset':'Сброс','Screens':'Экраны','+ Add':'+ Добавить',
+'Front View':'Вид спереди','Rear View (Rigging)':'Вид сзади (риггинг)',
+'Colour: signal ports':'Цвет: порты сигнала','Colour: power circuits':'Цвет: цепи питания','Colour: phase L1/L2/L3':'Цвет: фазы L1/L2/L3','Colour: none':'Цвет: нет',
+'Signal':'Сигнал','⚡ Power':'⚡ Питание','Labels':'Подписи','Fit':'Вписать',
+'Signal snake (RJ45)':'Сигнальная «змейка» (RJ45)','⚡ Power snake (PowerCON) — ⚡ marks Power IN':'⚡ Силовая «змейка» (PowerCON) — ⚡ = вход питания',
+'Port boundary':'Граница порта','Circuit boundary':'Граница цепи',
+'Wheel: zoom · Drag: pan · Dbl-click: fit':'Колесо: масштаб · Перетаскивание: сдвиг · Двойной клик: вписать',
+'Summary':'Сводка','Tech spec':'Тех. описание','Copy to clipboard':'Копировать в буфер','Download .txt':'Скачать .txt',
+'Screen & cabinet':'Экран и кабинет','Size & grid':'Размер и сетка','⚡ Power & phases':'⚡ Питание и фазы','Signal (RJ45)':'Сигнал (RJ45)',
+'Screen name':'Название экрана','Cabinet preset':'Типоразмер кабинета','500 × 500 mm':'500 × 500 мм','500 × 1000 mm':'500 × 1000 мм','960 × 960 mm':'960 × 960 мм','Custom':'Свой',
+'Cabinet width, mm':'Ширина кабинета, мм','Cabinet height, mm':'Высота кабинета, мм','Pixel pitch, mm':'Шаг пикселя, мм','Peak power / cab, W':'Пиковая мощность / каб., Вт',
+'Target width, m':'Целевая ширина, м','Target height, m':'Целевая высота, м','Columns':'Столбцы','Rows':'Строки',
+'Target size auto-calculates the grid (rounded to whole cabinets). Editing the grid updates the size.':'Целевой размер автоматически рассчитывает сетку (округление до целых кабинетов). Изменение сетки обновляет размер.',
+'Working load, % of peak':'Рабочая нагрузка, % от пика','Breaker':'Автомат','16 A':'16 А','32 A':'32 А','Safety headroom, %':'Запас, %',
+'Size circuits on':'Считать цепи по','Peak power':'Пиковой мощности','Working power':'Рабочей мощности',
+'Circuits (0 = auto)':'Цепей (0 = авто)','Slice by':'Делить по','Auto':'Авто','Bottom':'Снизу','Top':'Сверху','Left':'Слева','Right':'Справа',
+'⚡ Power IN (vertical)':'⚡ Вход питания (верт.)','⚡ Power IN (horizontal)':'⚡ Вход питания (гориз.)',
+'Entry corners are defined in Front View.':'Углы входа задаются для вида спереди.',
+'Pixels per port':'Пикселей на порт','Ports (0 = auto)':'Портов (0 = авто)','Signal entry (vertical)':'Вход сигнала (верт.)','Signal entry (horizontal)':'Вход сигнала (гориз.)',
+'655360 px ≈ 1 Gbit port at 8 bit/60 Hz.':'655360 пикс ≈ порт 1 Гбит при 8 бит/60 Гц.',
+'top':'верх','bottom':'низ','left':'лево','right':'право','columns':'столбцов','rows':'строк','peak':'пиковой','working':'рабочей',
+'Peak':'Пик','V':'В','m':'м','mm':'мм','kW':'кВт','A':'А','W':'Вт','px':'пикс','ckt':'цеп.',
+'Signal: {0} cabinets per port exceeds the {1}-cabinet port capacity ({2} px).':'Сигнал: {0} каб. на порт превышает ёмкость порта в {1} каб. ({2} пикс).',
+'Signal port override reduced to {0} (axis limit).':'Число портов уменьшено до {0} (предел по оси).',
+'Power: {0} cabinets per circuit exceeds the {1}-cabinet limit for {2} A with {3}% headroom.':'Питание: {0} каб. на цепь превышает лимит {1} каб. для {2} А с запасом {3}%.',
+'Power circuit override reduced to {0} (axis limit).':'Число цепей уменьшено до {0} (предел по оси).',
+'Signal ports cannot be sliced evenly ({0}).':'Порты сигнала нельзя разделить поровну ({0}).',
+'Power circuits cannot be sliced evenly ({0}).':'Цепи питания нельзя разделить поровну ({0}).',
+'Power: a circuit exceeds the {0} A breaker rating at peak.':'Питание: цепь превышает номинал автомата {0} А на пике.',
+'Power: a circuit exceeds the {0} A usable limit (headroom {1}%).':'Питание: цепь превышает рабочий лимит {0} А (запас {1}%).',
+'No screens found in file':'В файле не найдено ни одного экрана',
+'Size: {0} x {1} m ({2} m2), {3} x {4} = {5} cabinets {6}x{7} mm':'Размер: {0} x {1} м ({2} м2), {3} x {4} = {5} каб. {6}x{7} мм',
+'Pixel pitch: {0} mm, resolution {1} x {2} px ({3} MP)':'Шаг пикселя: {0} мм, разрешение {1} x {2} пикс ({3} Мп)',
+'Power: peak {0} kW / working {1} kW ({2}%), {3} W per cabinet':'Мощность: пик {0} кВт / рабочая {1} кВт ({2}%), {3} Вт на кабинет',
+'Circuits: {0} x {1} A (headroom {2}%, sized on {3} load), {4} {5}':'Цепи: {0} x {1} А (запас {2}%, расчёт по {3} нагрузке), {4} {5}',
+'Phases (peak A): {0} | working: {1}':'Фазы (пик, А): {0} | рабочая: {1}',
+'⚡ Power IN: {0} (front view), PowerCON jumpers: {1}, feeds: {2}':'⚡ Вход питания: {0} (вид спереди), перемычек PowerCON: {1}, подводов: {2}',
+'Signal: {0} RJ45 ports ({1} cab max/port), {2} {3}':'Сигнал: {0} портов RJ45 (макс. {1} каб./порт), {2} {3}',
+'Signal entry: {0} (front view), RJ45 jumpers: {1}, feeds: {2}':'Вход сигнала: {0} (вид спереди), перемычек RJ45: {1}, подводов: {2}',
+'P{0}: {1} cab, {2} A peak, {3}':'P{0}: {1} каб., {2} А пик, {3}',
+'LED CALC PRO - TECH SPEC':'LED CALC PRO - ТЕХНИЧЕСКОЕ ОПИСАНИЕ','Project: {0}':'Проект: {0}','Venue: {0}':'Площадка: {0}',
+'Mains: {0} V 3-phase ({1} V per phase) | {2}':'Сеть: {0} В, 3 фазы ({1} В на фазу) | {2}',
+'VENUE SUMMARY':'СВОДКА ПО ПЛОЩАДКЕ','SCREENS':'ЭКРАНЫ',
+'Screens: {0}, cabinets: {1}, area: {2} m2, {3} MP':'Экранов: {0}, кабинетов: {1}, площадь: {2} м2, {3} Мп',
+'Total power: peak {0} kW / working {1} kW':'Общая мощность: пик {0} кВт / рабочая {1} кВт',
+'Phase load peak: {0}':'Нагрузка по фазам, пик: {0}','Phase load working: {0}':'Нагрузка по фазам, рабочая: {0}',
+'Min. feed per phase: {0} A (peak) / {1} A (working)':'Мин. ввод на фазу: {0} А (пик) / {1} А (рабочая)',
+'Breakers: {0} x 16 A, {1} x 32 A ({2} circuits)':'Автоматы: {0} x 16 А, {1} x 32 А ({2} цепей)',
+'Signal ports: {0}, RJ45 jumpers: {1}':'Порты сигнала: {0}, перемычек RJ45: {1}',
+'PowerCON jumpers: {0}, power feeds: {1}':'Перемычек PowerCON: {0}, силовых подводов: {1}',
+'Venue summary · {0} screen(s)':'Сводка по площадке · экранов: {0}','Cabinets / area':'Кабинетов / площадь','Total power (peak)':'Общая мощность (пик)','Total power (working)':'Общая мощность (рабочая)',
+'Min. feed per phase':'Мин. ввод на фазу','{0} A peak · {1} A working':'{0} А пик · {1} А рабочая','Phase imbalance (peak)':'Небаланс фаз (пик)','Breakers':'Автоматы',
+'Signal ports / RJ45 jumpers':'Порты сигнала / перемычки RJ45','⚡ Power feeds / PowerCON jumpers':'⚡ Силовые подводы / перемычки PowerCON',
+'Phase current — peak':'Ток по фазам — пик','Phase current — working':'Ток по фазам — рабочий',
+'No issues detected for this screen.':'Замечаний по этому экрану нет.','Size':'Размер','{0} × {1} m · {2}×{3} cab':'{0} × {1} м · {2}×{3} каб.',
+'Resolution':'Разрешение','Power peak / working':'Мощность пик / рабочая','Phase voltage':'Напряжение фазы','Max cab / circuit':'Макс. каб. / цепь','{0} ({1} A usable)':'{0} ({1} А доступно)',
+'Circuits':'Цепи','Signal ports':'Порты сигнала','Max cab / port':'Макс. каб. / порт','RJ45 jumpers':'Перемычки RJ45','PowerCON jumpers':'Перемычки PowerCON',
+'Ckt':'Цепь','Cab':'Каб.','Work':'Раб.','Ph':'Ф.',
+'Cabinet col {0}, row {1}':'Кабинет: столбец {0}, строка {1}','Signal: port {0}, #{1}':'Сигнал: порт {0}, №{1}','⚡ Power: circuit {0}, #{1}, {2}':'⚡ Питание: цепь {0}, №{1}, {2}',
+'REAR VIEW (RIGGING) — mirrored horizontally':'ВИД СЗАДИ (РИГГИНГ) — зеркально по горизонтали','FRONT VIEW (audience side)':'ВИД СПЕРЕДИ (сторона зрителей)',
+'Signal route (RJ45) S#':'Сигнальный маршрут (RJ45) S#','Power route (PowerCON) P#  — bolt = Power IN':'Силовой маршрут (PowerCON) P#  — молния = вход питания',
+'SCREEN':'ЭКРАН','POWER':'ПИТАНИЕ','ROUTING':'КОММУТАЦИЯ','DRAWING':'ЧЕРТЁЖ',
+'Screen: {0}':'Экран: {0}','Drawn by: {0}':'Выполнил: {0}','Size: {0} x {1} m':'Размер: {0} x {1} м','Grid: {0} x {1} = {2} cab':'Сетка: {0} x {1} = {2} каб.',
+'Cabinet: {0} x {1} mm':'Кабинет: {0} x {1} мм','Pitch {0} mm · {1}x{2} px':'Шаг {0} мм · {1}x{2} пикс',
+'Peak {0} kW · Work {1} kW':'Пик {0} кВт · Раб. {1} кВт','{0} x {1} A · {2} V 3ph':'{0} x {1} А · {2} В 3ф','Peak A: {0}':'Пик, А: {0}','Slices: {0} {1}':'Деление: {0} {1}',
+'Signal: {0} ports · {1} {2}':'Сигнал: {0} портов · {1} {2}','Signal entry: {0} (front)':'Вход сигнала: {0} (спереди)','⚡ Power IN: {0} (front)':'⚡ Вход питания: {0} (спереди)',
+'Jumpers: RJ45 {0} · PowerCON {1}':'Перемычки: RJ45 {0} · PowerCON {1}','Date: {0}':'Дата: {0}','Sheet: {0} / {1}':'Лист: {0} / {1}','View: {0}':'Вид: {0}',
+'Rear (rigging)':'Сзади (риггинг)','Front':'Спереди','Format: A4 landscape':'Формат: A4 альбомный',
+'Export: signal / power sheets':'Экспорт: отдельно сигнал / питание','Export: combined sheet':'Экспорт: общий лист',
+'Signal routing sheet':'Лист сигнальной коммутации','⚡ Power routing sheet':'Лист питающей коммутации','Combined routing sheet':'Общий лист коммутации',
+'Exported {0} sheet(s)':'Экспортировано листов: {0}','Port list':'Список портов','⚡ Circuit list':'⚡ Список цепей','Cab.':'Каб.','Entry':'Вход','Phase':'Фаза','col':'стб','row':'стр',
+'VENUE OVERVIEW':'ОБЗОР ПЛОЩАДКИ','Screen':'Экран','Size, m':'Размер, м','Cabinets':'Кабинеты','Peak, kW':'Пик, кВт','Work, kW':'Раб., кВт','Ports':'Порты','RJ45 jmp':'RJ45','PC jmp':'PowerCON','Total':'Итого','Phase load (peak A)':'Нагрузка по фазам (пик, А)',
+'Screens: {0}':'Экранов: {0}','Cabinets: {0} · {1} m2':'Кабинетов: {0} · {1} м2','Breakers: {0} x 16 A, {1} x 32 A':'Автоматы: {0} x 16 А, {1} x 32 А',
+'Signal ports: {0}, RJ45 jumpers: {1}':'Портов сигнала: {0}, перемычек RJ45: {1}','PowerCON jumpers: {0}':'Перемычки PowerCON: {0}','RJ45 jumpers: {0}':'Перемычки RJ45: {0}','Power feeds: {0}':'Питающих вводов: {0}',
+'Max {0} cab / circuit':'Макс. {0} каб. / цепь','Max {0} cab / port':'Макс. {0} каб. / порт','Phase voltage: {0} V':'Фазное напряжение: {0} В','Port capacity: {0} px':'Ёмкость порта: {0} px',
+'SIGNAL':'СИГНАЛ','SIGNAL ROUTING':'СИГНАЛЬНАЯ КОММУТАЦИЯ','⚡ POWER ROUTING':'⚡ ПИТАЮЩАЯ КОММУТАЦИЯ','{0} x {1} px':'{0} x {1} px',
+'PNG export failed':'Не удалось экспортировать PNG','PNG export failed: {0}':'Ошибка экспорта PNG: {0}','PDF export failed: {0}':'Ошибка экспорта PDF: {0}',
+'Remove this screen?':'Удалить этот экран?','Reset the project and delete all screens?':'Сбросить проект и удалить все экраны?',
+'Spec copied to clipboard':'Описание скопировано в буфер','Copy failed — select the text manually':'Не удалось скопировать — выделите текст вручную',
+'Imported {0} screen(s) from {1}':'Импортировано экранов: {0} из {1}','Import failed: {0}':'Ошибка импорта: {0}','Could not read file':'Не удалось прочитать файл'
+};
+let lang = 'en';
+const t = (k, ...a) => {
+  let r = (lang === 'ru' && RU[k]) || k;
+  a.forEach((v, i) => { r = r.split('{' + i + '}').join(v); });
+  return r;
+};
+function applyStatic() {
+  document.documentElement.lang = lang;
+  $$('[data-i18n]').forEach(el => {
+    if (!el.dataset.en) el.dataset.en = el.textContent.trim();
+    el.textContent = t(el.dataset.en);
+  });
+}
+
+
+/* ============================ Data model ============================ */
+const PRESETS = {
+  '500x500':  { w: 500, h: 500,  peak: 200 },
+  '500x1000': { w: 500, h: 1000, peak: 400 },
+  '960x960':  { w: 960, h: 960,  peak: 700 }
+};
+
+function defaultScreen(n = 1) {
+  return {
+    id: newId(), name: 'Screen ' + n,
+    preset: '500x500', cabW: 500, cabH: 500, pitch: 2.6, cabPeak: 200,
+    tW: 8, tH: 4, cols: 16, rows: 8,
+    avgPct: 35, breaker: 16, headroom: 20, sizeBy: 'peak',
+    portPx: 655360,
+    sigOverride: 0, sigAxis: 'auto', sigH: 'left', sigV: 'bottom',
+    pwrOverride: 0, pwrAxis: 'auto', pwrH: 'right', pwrV: 'bottom'
+  };
+}
+
+/* Returns a sanitised copy so that calculations never see invalid values. */
+function clean(S) {
+  const d = defaultScreen();
+  const s = Object.assign({}, S);
+  s.name = String(s.name || d.name);
+  s.preset = pick(s.preset, [...Object.keys(PRESETS), 'custom'], 'custom');
+  s.cabW = clamp(num(s.cabW, d.cabW), 100, 2000);
+  s.cabH = clamp(num(s.cabH, d.cabH), 100, 2000);
+  s.pitch = clamp(num(s.pitch, d.pitch), 0.4, 50);
+  s.cabPeak = clamp(num(s.cabPeak, d.cabPeak), 1, 5000);
+  s.tW = clamp(num(s.tW, d.tW), 0.1, 500);
+  s.tH = clamp(num(s.tH, d.tH), 0.1, 500);
+  s.cols = clamp(int(s.cols, d.cols), 1, 200);
+  s.rows = clamp(int(s.rows, d.rows), 1, 200);
+  s.avgPct = clamp(num(s.avgPct, d.avgPct), 5, 100);
+  s.breaker = int(s.breaker, 16) === 32 ? 32 : 16;
+  s.headroom = clamp(num(s.headroom, d.headroom), 0, 50);
+  s.sizeBy = pick(s.sizeBy, ['peak', 'avg'], 'peak');
+  s.portPx = clamp(num(s.portPx, d.portPx), 1000, 4e6);
+  for (const k of ['sig', 'pwr']) {
+    s[k + 'Override'] = clamp(int(s[k + 'Override'], 0), 0, 200);
+    s[k + 'Axis'] = pick(s[k + 'Axis'], ['auto', 'cols', 'rows'], 'auto');
+    s[k + 'H'] = pick(s[k + 'H'], ['left', 'right'], k === 'sig' ? 'left' : 'right');
+    s[k + 'V'] = pick(s[k + 'V'], ['top', 'bottom'], 'bottom');
+  }
+  return s;
+}
+
+/* ============================ Routing algorithm ============================ */
+/* Slice bounds along an axis of length L into M parts: sizes differ by at most one. */
+const sliceBounds = (L, M) => Array.from({ length: M + 1 }, (_, i) => Math.round(i * L / M));
+
+function planAxis(axis, cols, rows, maxCab, override) {
+  const L = axis === 'cols' ? cols : rows, O = axis === 'cols' ? rows : cols;
+  const maxSl = m => Math.ceil(L / m) * O;
+  let M, clamped = false;
+  if (override > 0) { M = Math.min(override, L); clamped = override > L; }
+  else {
+    M = Math.min(Math.max(Math.ceil(cols * rows / maxCab), 1), L);
+    while (M < L && maxSl(M) > maxCab) M++;
+    // Prefer a count that divides the axis evenly (e.g. 2-2-2-2-2-2-2-2) if it is cheap.
+    const lim = Math.min(L, M + Math.ceil(M / 2));
+    for (let m = M; m <= lim; m++) if (L % m === 0) { M = m; break; }
+  }
+  const bounds = sliceBounds(L, M);
+  return { axis, M, bounds, sizes: bounds.slice(1).map((b, i) => b - bounds[i]),
+           even: L % M === 0, maxSlice: maxSl(M), fits: maxSl(M) <= maxCab, clamped };
+}
+
+function planSlices(cols, rows, maxCab, override, axisPref) {
+  const axes = axisPref === 'auto' ? ['cols', 'rows'] : [axisPref];
+  const plans = axes.map(a => planAxis(a, cols, rows, maxCab, override));
+  plans.sort((a, b) => (b.fits - a.fits) || (b.even - a.even) || (a.M - b.M));
+  return plans[0];
+}
+
+/* Builds whole-column / whole-row branches, each routed as a snake starting at the chosen entry corner. */
+function buildBranches(cols, rows, plan, sH, sV) {
+  const { axis, bounds, M } = plan;
+  const grid = Array.from({ length: rows }, () => new Array(cols));
+  const slices = [];
+  for (let i = 0; i < M; i++) slices.push([bounds[i], bounds[i + 1]]);
+  const fromEnd = axis === 'cols' ? sH === 'right' : sV === 'bottom';
+  if (fromEnd) slices.reverse();
+  const O = axis === 'cols' ? rows : cols;
+  const lineFromEnd = axis === 'cols' ? sV === 'bottom' : sH === 'right';
+  const branches = slices.map(([a, b], bi) => {
+    const cells = [];
+    const idx = [];
+    for (let k = a; k < b; k++) idx.push(k);
+    if (fromEnd) idx.reverse();
+    idx.forEach((k, j) => {
+      const order = Array.from({ length: O }, (_, i) => i);
+      if (lineFromEnd !== (j % 2 === 1)) order.reverse();
+      order.forEach(o => cells.push(axis === 'cols' ? { c: k, r: o } : { c: o, r: k }));
+    });
+    cells.forEach((p, i) => { grid[p.r][p.c] = { b: bi, i }; });
+    return { cells, size: b - a };
+  });
+  return { grid, branches };
+}
+
+/* ============================ Calculation ============================ */
+const phaseVoltage = project => project.voltage === '220' ? 127 : 220;
+
+function compute(S, project) {
+  const s = clean(S);
+  const pv = phaseVoltage(project);
+  const cabs = s.cols * s.rows;
+  const pxW = Math.max(1, Math.round(s.cabW / s.pitch)), pxH = Math.max(1, Math.round(s.cabH / s.pitch));
+  const sigMax = Math.max(1, Math.floor(s.portPx / (pxW * pxH)));
+  const usableA = s.breaker * (1 - s.headroom / 100);
+  const basisW = s.cabPeak * (s.sizeBy === 'peak' ? 1 : s.avgPct / 100);
+  const pwrMax = Math.max(1, Math.floor(usableA * pv / basisW));
+  const sigPlan = planSlices(s.cols, s.rows, sigMax, s.sigOverride, s.sigAxis);
+  const pwrPlan = planSlices(s.cols, s.rows, pwrMax, s.pwrOverride, s.pwrAxis);
+  const sig = buildBranches(s.cols, s.rows, sigPlan, s.sigH, s.sigV);
+  const pwr = buildBranches(s.cols, s.rows, pwrPlan, s.pwrH, s.pwrV);
+  const peakW = cabs * s.cabPeak, avgW = peakW * s.avgPct / 100;
+  const circuits = pwr.branches.map((b, i) => {
+    const n = b.cells.length;
+    return { idx: i, n, peakW: n * s.cabPeak, avgW: n * s.cabPeak * s.avgPct / 100, phase: 0 };
+  });
+  const warnings = [];
+  if (!sigPlan.fits) warnings.push(['bad', t('Signal: {0} cabinets per port exceeds the {1}-cabinet port capacity ({2} px).', sigPlan.maxSlice, sigMax, s.portPx)]);
+  if (sigPlan.clamped) warnings.push(['warn', t('Signal port override reduced to {0} (axis limit).', sigPlan.M)]);
+  if (!pwrPlan.fits) warnings.push(['bad', t('Power: {0} cabinets per circuit exceeds the {1}-cabinet limit for {2} A with {3}% headroom.', pwrPlan.maxSlice, pwrMax, s.breaker, s.headroom)]);
+  if (pwrPlan.clamped) warnings.push(['warn', t('Power circuit override reduced to {0} (axis limit).', pwrPlan.M)]);
+  if (!sigPlan.even) warnings.push(['warn', t('Signal ports cannot be sliced evenly ({0}).', sigPlan.sizes.join('-'))]);
+  if (!pwrPlan.even) warnings.push(['warn', t('Power circuits cannot be sliced evenly ({0}).', pwrPlan.sizes.join('-'))]);
+  return {
+    s, pv, cabs, pxW, pxH, resW: pxW * s.cols, resH: pxH * s.rows,
+    widthM: s.cols * s.cabW / 1000, heightM: s.rows * s.cabH / 1000,
+    areaM2: s.cols * s.cabW * s.rows * s.cabH / 1e6,
+    sigMax, pwrMax, usableA, sigPlan, pwrPlan, sig, pwr, circuits,
+    peakW, avgW,
+    sigJumpers: sig.branches.reduce((a, b) => a + b.cells.length - 1, 0),
+    pwrJumpers: pwr.branches.reduce((a, b) => a + b.cells.length - 1, 0),
+    warnings
+  };
+}
+
+/* Balances all circuits of the whole project across L1/L2/L3 (greedy, heaviest first). */
+function assignPhases(calcs, project) {
+  const pv = phaseVoltage(project);
+  const load = [0, 0, 0], cnt = [0, 0, 0];
+  const all = [];
+  calcs.forEach(C => C.circuits.forEach(c => all.push(c)));
+  [...all].sort((a, b) => b.peakW - a.peakW).forEach(c => {
+    let p = 0;
+    for (let i = 1; i < 3; i++) if (load[i] < load[p]) p = i;
+    c.phase = p; load[p] += c.peakW; cnt[p]++;
+  });
+  const phases = [0, 1, 2].map(p => ({ peakW: 0, avgW: 0, circuits: cnt[p] }));
+  calcs.forEach(C => {
+    C.phases = [0, 1, 2].map(() => ({ peakW: 0, avgW: 0, circuits: 0 }));
+    C.circuits.forEach(c => {
+      phases[c.phase].peakW += c.peakW; phases[c.phase].avgW += c.avgW;
+      const q = C.phases[c.phase]; q.peakW += c.peakW; q.avgW += c.avgW; q.circuits++;
+      c.peakA = c.peakW / pv; c.avgA = c.avgW / pv;
+      c.overload = c.peakA > C.s.breaker;
+    });
+    C.phases.forEach(q => { q.peakA = q.peakW / pv; q.avgA = q.avgW / pv; });
+    if (C.circuits.some(c => c.overload)) C.warnings.push(['bad', t('Power: a circuit exceeds the {0} A breaker rating at peak.', C.s.breaker)]);
+    else if (C.circuits.some(c => (C.s.sizeBy === 'peak' ? c.peakA : c.avgA) > C.usableA + 1e-9))
+      C.warnings.push(['warn', t('Power: a circuit exceeds the {0} A usable limit (headroom {1}%).', f1(C.usableA), C.s.headroom)]);
+  });
+  phases.forEach(p => { p.peakA = p.peakW / pv; p.avgA = p.avgW / pv; });
+  return phases;
+}
+
+function venueSummary(calcs, project) {
+  const phases = assignPhases(calcs, project);
+  const sum = f => calcs.reduce((a, C) => a + f(C), 0);
+  const br = { 16: 0, 32: 0 };
+  calcs.forEach(C => { br[C.s.breaker] += C.circuits.length; });
+  const maxPeakA = Math.max(...phases.map(p => p.peakA));
+  const maxAvgA = Math.max(...phases.map(p => p.avgA));
+  return {
+    screens: calcs.length, cabs: sum(C => C.cabs), area: sum(C => C.areaM2),
+    pixels: sum(C => C.resW * C.resH), peakW: sum(C => C.peakW), avgW: sum(C => C.avgW),
+    phases, br, maxPeakA, maxAvgA, feedPeak: nextStd(maxPeakA), feedAvg: nextStd(maxAvgA),
+    ports: sum(C => C.sigPlan.M), circuits: sum(C => C.circuits.length),
+    sigJumpers: sum(C => C.sigJumpers), pwrJumpers: sum(C => C.pwrJumpers),
+    imbalance: maxPeakA > 0 ? (maxPeakA - Math.min(...phases.map(p => p.peakA))) / maxPeakA * 100 : 0
+  };
+}
+
+/* ============================ State & persistence ============================ */
+const LS_KEY = 'ledcalcpro.v1';
+function defaultState() {
+  const s = defaultScreen(1);
+  return {
+    project: { name: 'New Project', venue: '', author: '', voltage: '380' },
+    screens: [s], activeId: s.id,
+    ui: { view: 'front', fill: 'signal', sig: true, pwr: true, labels: true, tab: 'sum', exp: 'split', lang: /^ru/i.test(navigator.language || '') ? 'ru' : 'en' }
+  };
+}
+let state = defaultState();
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw), base = defaultState();
+    if (!d || !Array.isArray(d.screens) || !d.screens.length) return;
+    state = {
+      project: Object.assign(base.project, d.project),
+      screens: d.screens.map(x => Object.assign(defaultScreen(), x, { id: x.id || newId() })),
+      activeId: d.activeId,
+      ui: Object.assign(base.ui, d.ui)
+    };
+    if (!state.screens.some(x => x.id === state.activeId)) state.activeId = state.screens[0].id;
+  } catch (e) { console.warn('State restore failed', e); }
+}
+let saveTimer = 0;
+function saveState() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+  }, 150);
+}
+const active = () => state.screens.find(s => s.id === state.activeId) || state.screens[0];
+
+/* ============================ .ledmask import (modular) ============================ */
+/* To adapt to a specific field structure edit FIELD_MAP (key alias -> setter) or register a new parser:
+   LedMask.register({ id, test(text) -> bool, parse(text) -> { project:{}, screens:[{...}] } }) */
+const LedMask = (() => {
+  const startPos = (v, o, kind) => {
+    const t = String(v).toLowerCase();
+    o[kind + 'H'] = t.includes('right') ? 'right' : 'left';
+    o[kind + 'V'] = t.includes('top') ? 'top' : 'bottom';
+  };
+  const FIELD_MAP = {
+    name: (v, o) => { o.name = v; }, screen: (v, o) => { o.name = v; },
+    cabinet: (v, o) => {
+      const m = String(v).match(/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
+      if (m) { o.cabW = +m[1]; o.cabH = +m[2]; o.preset = (m[1] + 'x' + m[2]) in PRESETS ? m[1] + 'x' + m[2] : 'custom'; }
+    },
+    cab_w: (v, o) => { o.cabW = +v; o.preset = 'custom'; }, cab_h: (v, o) => { o.cabH = +v; o.preset = 'custom'; },
+    pitch: (v, o) => { o.pitch = +v; }, pixel_pitch: (v, o) => { o.pitch = +v; },
+    cols: (v, o) => { o.cols = +v; }, columns: (v, o) => { o.cols = +v; }, rows: (v, o) => { o.rows = +v; },
+    width_m: (v, o) => { o.tW = +v; }, height_m: (v, o) => { o.tH = +v; },
+    peak_w: (v, o) => { o.cabPeak = +v; }, avg_pct: (v, o) => { o.avgPct = +v; },
+    breaker: (v, o) => { o.breaker = +v; }, headroom: (v, o) => { o.headroom = +v; },
+    ports: (v, o) => { o.sigOverride = +v; }, circuits: (v, o) => { o.pwrOverride = +v; },
+    port_px: (v, o) => { o.portPx = +v; },
+    signal_start: (v, o) => startPos(v, o, 'sig'), power_start: (v, o) => startPos(v, o, 'pwr'),
+    signal_axis: (v, o) => { o.sigAxis = String(v).toLowerCase(); }, power_axis: (v, o) => { o.pwrAxis = String(v).toLowerCase(); }
+  };
+  const PROJECT_MAP = {
+    project: (v, p) => { p.name = v; }, venue: (v, p) => { p.venue = v; },
+    author: (v, p) => { p.author = v; }, voltage: (v, p) => { p.voltage = String(v).includes('220') && !String(v).includes('380') ? '220' : '380'; }
+  };
+  const normKey = k => k.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const applyKV = (k, v, scr, prj) => {
+    k = normKey(k);
+    if (PROJECT_MAP[k]) PROJECT_MAP[k](String(v).trim(), prj);
+    else if (scr && FIELD_MAP[k]) FIELD_MAP[k](String(v).trim(), scr);
+  };
+  const parsers = [
+    { id: 'json', test: t => /^\s*[{\[]/.test(t),
+      parse(t) {
+        const d = JSON.parse(t);
+        const arr = Array.isArray(d) ? d : (d.screens || [d]);
+        const project = {}, screens = [];
+        if (d.project && typeof d.project === 'object') Object.entries(d.project).forEach(([k, v]) => applyKV(k, v, null, project));
+        arr.forEach(x => { const o = {}; Object.entries(x).forEach(([k, v]) => applyKV(k, v, o, project)); screens.push(o); });
+        return { project, screens };
+      } },
+    { id: 'ini', test: () => true,
+      parse(t) {
+        const project = {}, screens = [];
+        let cur = null;
+        t.split(/\r?\n/).forEach(line => {
+          line = line.replace(/^\uFEFF/, '').trim();
+          if (!line || /^(#|;|\/\/)/.test(line)) return;
+          if (/^\[(.+)\]$/.test(line)) { cur = {}; screens.push(cur); return; }
+          const m = line.match(/^([^=:]+)[=:]\s*(.*)$/);
+          if (!m) return;
+          const k = normKey(m[1]);
+          if (!cur && FIELD_MAP[k] && !PROJECT_MAP[k]) { cur = {}; screens.push(cur); }
+          applyKV(k, m[2], cur, project);
+        });
+        return { project, screens };
+      } }
+  ];
+  return {
+    register(p) { parsers.unshift(p); },
+    parse(text) {
+      const p = parsers.find(x => x.test(text));
+      const r = p.parse(text);
+      if (!r.screens.length) throw new Error(t('No screens found in file'));
+      return r;
+    }
+  };
+})();
+
+const SAMPLE_MASK = `# LED Calc Pro mask file (key = value). One [screen] block per screen.
+project = Festival Main Stage
+venue = Arena Hall A
+voltage = 380
+
+[screen]
+name = Main LED
+cabinet = 500x500
+pitch = 2.6
+width_m = 8
+height_m = 4
+peak_w = 200
+avg_pct = 35
+breaker = 16
+headroom = 20
+signal_start = bottom-left
+power_start = bottom-right
+
+[screen]
+name = Side Left
+cabinet = 500x1000
+pitch = 3.9
+cols = 4
+rows = 6
+peak_w = 400
+breaker = 32
+signal_start = top-left
+power_start = top-left
+`;
+
+/* ============================ Drawing ============================ */
+const THEMES = {
+  dark:  { bg: '#0a0e14', cellStroke: 'rgba(0,0,0,.55)', empty: '#222b36', text: '#e6edf3', mut: '#8b98a8', sig: '#5ee7ff', sigEdge: '#ffffff', pwr: '#ffb347', sat: 55, lig: 32, tag: 'rgba(0,0,0,.7)', hl: '#fff', boltFill: '#fff3b0', boltRing: '#3a2200' },
+  light: { bg: '#ffffff', cellStroke: 'rgba(0,0,0,.35)', empty: '#eee', text: '#111', mut: '#555', sig: '#006d99', sigEdge: '#000000', pwr: '#c25e00', sat: 60, lig: 82, tag: 'rgba(255,255,255,.85)', hl: '#000', boltFill: '#ffe14d', boltRing: '#000' }
+};
+const branchColor = (i, T) => `hsl(${(i * 137.5 + 200) % 360} ${T.sat}% ${T.lig}%)`;
+
+function layoutGeom(C, box, margin) {
+  const { cols, rows, cabW, cabH } = C.s;
+  const aw = box.w - margin * 2, ah = box.h - margin * 2;
+  const sc = Math.max(1e-6, Math.min(aw / (cols * cabW), ah / (rows * cabH)));
+  const cw = cabW * sc, ch = cabH * sc;
+  return { cw, ch, ox: box.x + (box.w - cw * cols) / 2, oy: box.y + (box.h - ch * rows) / 2 };
+}
+
+function drawBoundaries(ctx, C, g, rear, grid, inset, color, lw, dash) {
+  const { cols, rows } = C.s;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.setLineDash(dash || []); ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const id = grid[r][c].b, x = g.ox + (rear ? cols - 1 - c : c) * g.cw, y = g.oy + r * g.ch;
+    const nb = (dc, dr) => { const nc = c + dc, nr = r + dr; return (nc < 0 || nr < 0 || nc >= cols || nr >= rows) ? -1 : grid[nr][nc].b; };
+    if (nb(0, -1) !== id) { ctx.moveTo(x, y + inset); ctx.lineTo(x + g.cw, y + inset); }
+    if (nb(0, 1) !== id) { ctx.moveTo(x, y + g.ch - inset); ctx.lineTo(x + g.cw, y + g.ch - inset); }
+    const leftId = rear ? nb(1, 0) : nb(-1, 0), rightId = rear ? nb(-1, 0) : nb(1, 0);
+    if (leftId !== id) { ctx.moveTo(x + inset, y); ctx.lineTo(x + inset, y + g.ch); }
+    if (rightId !== id) { ctx.moveTo(x + g.cw - inset, y); ctx.lineTo(x + g.cw - inset, y + g.ch); }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* Vector lightning bolt (renders identically at any scale, unlike an emoji glyph). */
+function drawBolt(ctx, x, y, size, fill, stroke) {
+  const P = [[0.12, -0.5], [-0.3, 0.08], [-0.03, 0.08], [-0.12, 0.5], [0.3, -0.1], [0.03, -0.1]];
+  ctx.save();
+  ctx.beginPath();
+  P.forEach(([px, py], i) => i ? ctx.lineTo(x + px * size, y + py * size) : ctx.moveTo(x + px * size, y + py * size));
+  ctx.closePath();
+  ctx.setLineDash([]); ctx.fillStyle = fill; ctx.fill();
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(0.8, size * 0.06); ctx.lineJoin = 'round'; ctx.stroke(); }
+  ctx.restore();
+}
+
+function drawRoute(ctx, C, g, rear, B, color, off, lw, prefix, dash, T, fs) {
+  const { cols } = C.s;
+  const pt = p => ({ x: g.ox + ((rear ? cols - 1 - p.c : p.c) + 0.5) * g.cw + off, y: g.oy + (p.r + 0.5) * g.ch + off });
+  const hs = clamp(Math.min(g.cw, g.ch) * 0.16, 4, 40);
+  ctx.save();
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  B.branches.forEach((b, bi) => {
+    const pts = b.cells.map(pt);
+    ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], p = pts[i], ang = Math.atan2(p.y - a.y, p.x - a.x);
+      const mx = (a.x + p.x) / 2 + Math.cos(ang) * hs * 0.5, my = (a.y + p.y) / 2 + Math.sin(ang) * hs * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(mx, my);
+      ctx.lineTo(mx - Math.cos(ang - 0.45) * hs, my - Math.sin(ang - 0.45) * hs);
+      ctx.lineTo(mx - Math.cos(ang + 0.45) * hs, my - Math.sin(ang + 0.45) * hs);
+      ctx.closePath(); ctx.fill();
+    }
+    const s0 = pts[0];
+    if (prefix === 'P') {
+      const rr = Math.max(hs * 1.15, 6);
+      ctx.beginPath(); ctx.arc(s0.x, s0.y, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = T.boltRing; ctx.lineWidth = Math.max(1, rr * 0.12); ctx.setLineDash([]); ctx.stroke();
+      drawBolt(ctx, s0.x, s0.y, rr * 1.5, T.boltFill, T.boltRing);
+    } else { ctx.beginPath(); ctx.arc(s0.x, s0.y, hs * 0.7, 0, Math.PI * 2); ctx.fill(); }
+    if (fs >= 7) {
+      const label = `${prefix}${bi + 1}`;
+      ctx.font = `bold ${fs}px system-ui,sans-serif`;
+      const w = ctx.measureText(label).width + fs * 0.6;
+      const lx = s0.x + hs, ly = s0.y - hs - fs * 0.5;
+      ctx.fillStyle = T.tag; ctx.fillRect(lx, ly - fs * 0.7, w, fs * 1.3);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = color; ctx.lineWidth = Math.max(1, lw * 0.5); ctx.strokeRect(lx, ly - fs * 0.7, w, fs * 1.3);
+      ctx.fillStyle = color; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      ctx.fillText(label, lx + fs * 0.3, ly - fs * 0.05);
+      ctx.lineWidth = lw;
+    }
+  });
+  ctx.restore();
+}
+
+/* Renders one screen into box. o: {view, fill, sig, pwr, labels, theme, margin, title, hover, legend} */
+function drawLayout(ctx, C, box, o) {
+  const T = THEMES[o.theme || 'dark'];
+  const { cols, rows } = C.s, rear = o.view === 'rear';
+  const margin = o.margin || 40;
+  const g = layoutGeom(C, box, margin);
+  const unit = Math.min(g.cw, g.ch);
+  const fs = clamp(unit * 0.2, 8, 44);
+  const lw = clamp(unit * 0.045, 1.2, 9);
+  ctx.save();
+  ctx.textBaseline = 'middle';
+
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const x = g.ox + (rear ? cols - 1 - c : c) * g.cw, y = g.oy + r * g.ch;
+    let fill = T.empty;
+    if (o.fill === 'signal') fill = branchColor(C.sig.grid[r][c].b, T);
+    else if (o.fill === 'power') fill = branchColor(C.pwr.grid[r][c].b, T);
+    else if (o.fill === 'phase') fill = PHASE_COL[C.circuits[C.pwr.grid[r][c].b].phase] + (o.theme === 'light' ? '99' : 'aa');
+    ctx.fillStyle = fill; ctx.fillRect(x, y, g.cw, g.ch);
+    ctx.strokeStyle = T.cellStroke; ctx.lineWidth = Math.max(0.5, lw * 0.3); ctx.strokeRect(x, y, g.cw, g.ch);
+    if (o.labels && g.cw > 34 && g.ch > 22) {
+      ctx.fillStyle = T.text; ctx.globalAlpha = 0.6; ctx.font = `${fs * 0.75}px system-ui,sans-serif`;
+      ctx.textAlign = 'center'; ctx.fillText(`${c + 1}.${r + 1}`, x + g.cw / 2, y + g.ch - fs * 0.7);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  if (o.sig) drawBoundaries(ctx, C, g, rear, C.sig.grid, lw * 0.6, T.sigEdge, lw * 0.9, []);
+  if (o.pwr) drawBoundaries(ctx, C, g, rear, C.pwr.grid, lw * 1.9, T.pwr, lw * 0.9, [lw * 2.5, lw * 1.8]);
+
+  const off = Math.min(g.cw, g.ch) * 0.14;
+  if (o.sig) drawRoute(ctx, C, g, rear, C.sig, T.sig, -off, lw, 'S', null, T, fs);
+  if (o.pwr) drawRoute(ctx, C, g, rear, C.pwr, T.pwr, off, lw, 'P', [lw * 2.5, lw * 1.5], T, fs);
+
+  // Axis numbers (always actual cabinet numbers, so they mirror in rear view) and dimensions
+  const af = clamp(unit * 0.22, 9, 40);
+  ctx.fillStyle = T.mut; ctx.font = `${af}px system-ui,sans-serif`; ctx.textAlign = 'center';
+  const stepX = Math.max(1, Math.ceil((af * 2.2) / g.cw)), stepY = Math.max(1, Math.ceil((af * 1.6) / g.ch));
+  for (let i = 0; i < cols; i++) if (i % stepX === 0 || i === cols - 1) {
+    const sx = rear ? cols - 1 - i : i;
+    ctx.fillText(String(i + 1), g.ox + (sx + 0.5) * g.cw, g.oy - af * 0.9);
+  }
+  ctx.textAlign = rear ? 'left' : 'right';
+  const axX = rear ? g.ox + cols * g.cw + af * 0.5 : g.ox - af * 0.5;
+  for (let i = 0; i < rows; i++) if (i % stepY === 0 || i === rows - 1) ctx.fillText(String(i + 1), axX, g.oy + (i + 0.5) * g.ch);
+  ctx.textAlign = 'center'; ctx.fillStyle = T.text; ctx.font = `bold ${af * 1.1}px system-ui,sans-serif`;
+  ctx.fillText(`${f2(C.widthM)} ${t('m')}  (${cols} × ${C.s.cabW} ${t('mm')})`, g.ox + cols * g.cw / 2, g.oy + rows * g.ch + af * 1.4);
+  ctx.save();
+  const dimX = rear ? g.ox - af * 1.2 : g.ox + cols * g.cw + af * 1.2;
+  ctx.translate(dimX, g.oy + rows * g.ch / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText(`${f2(C.heightM)} ${t('m')}  (${rows} × ${C.s.cabH} ${t('mm')})`, 0, 0);
+  ctx.restore();
+
+  const ts = o.title || 14;
+  ctx.textAlign = 'left'; ctx.fillStyle = T.text; ctx.font = `bold ${ts}px system-ui,sans-serif`;
+  ctx.fillText(rear ? t('REAR VIEW (RIGGING) — mirrored horizontally') : t('FRONT VIEW (audience side)'), box.x + ts * 0.8, box.y + ts * 1.1);
+
+  if (o.hover) {
+    const hx = g.ox + (rear ? cols - 1 - o.hover.c : o.hover.c) * g.cw, hy = g.oy + o.hover.r * g.ch;
+    ctx.strokeStyle = T.hl; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.strokeRect(hx + 1, hy + 1, g.cw - 2, g.ch - 2);
+  }
+
+  if (o.legend) {
+    const lx = box.x + box.w - ts * 28, ly = box.y + ts * 1.1, gap = ts * 1.5;
+    ctx.font = `${ts * 0.8}px system-ui,sans-serif`; ctx.textAlign = 'left';
+    [[T.sig, [], t('Signal route (RJ45) S#')], [T.pwr, [ts * .5, ts * .3], t('Power route (PowerCON) P#  — bolt = Power IN')]].forEach(([col, dash, txt], i) => {
+      ctx.strokeStyle = col; ctx.lineWidth = Math.max(2, ts * 0.1); ctx.setLineDash(dash);
+      ctx.beginPath(); ctx.moveTo(lx, ly + i * gap); ctx.lineTo(lx + ts * 2, ly + i * gap); ctx.stroke();
+      ctx.setLineDash([]);
+      if (i === 1) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(lx - ts * 0.9, ly + gap, ts * 0.55, 0, Math.PI * 2); ctx.fill(); drawBolt(ctx, lx - ts * 0.9, ly + gap, ts * 0.8, T.boltFill, T.boltRing); }
+      ctx.fillStyle = T.text; ctx.fillText(txt, lx + ts * 2.4, ly + i * gap);
+    });
+  }
+  ctx.restore();
+  return g;
+}
+
+/* ============================ Text helpers ============================ */
+const entryName = (v, h) => `${t(v)}-${t(h)}`;
+const axisName = p => p.axis === 'cols' ? t('columns') : t('rows');
+const slicePattern = p => p.sizes.join('-');
+const phStr = (ph, key, unit) => ph.map((q, i) => `${PHASE_NAME[i]} ${f1(q[key])}${unit || ''}`).join(' | ');
+
+function screenSpec(C, idx) {
+  const s = C.s, L = [], I = '  ';
+  L.push(`${idx != null ? (idx + 1) + '. ' : ''}${s.name}`);
+  L.push(I + t('Size: {0} x {1} m ({2} m2), {3} x {4} = {5} cabinets {6}x{7} mm', f2(C.widthM), f2(C.heightM), f2(C.areaM2), s.cols, s.rows, C.cabs, s.cabW, s.cabH));
+  L.push(I + t('Pixel pitch: {0} mm, resolution {1} x {2} px ({3} MP)', s.pitch, C.resW, C.resH, (C.resW * C.resH / 1e6).toFixed(2)));
+  L.push(I + t('Power: peak {0} kW / working {1} kW ({2}%), {3} W per cabinet', f2(C.peakW / 1000), f2(C.avgW / 1000), s.avgPct, s.cabPeak));
+  L.push(I + t('Circuits: {0} x {1} A (headroom {2}%, sized on {3} load), {4} {5}', C.circuits.length, s.breaker, s.headroom, t(s.sizeBy === 'peak' ? 'peak' : 'working'), slicePattern(C.pwrPlan), axisName(C.pwrPlan)));
+  L.push(I + t('Phases (peak A): {0} | working: {1}', C.phases.map((q, i) => `${PHASE_NAME[i]} ${f1(q.peakA)}`).join(' / '), C.phases.map(q => f1(q.avgA)).join(' / ')));
+  L.push(I + t('⚡ Power IN: {0} (front view), PowerCON jumpers: {1}, feeds: {2}', entryName(s.pwrV, s.pwrH), C.pwrJumpers, C.circuits.length));
+  L.push(I + t('Signal: {0} RJ45 ports ({1} cab max/port), {2} {3}', C.sigPlan.M, C.sigMax, slicePattern(C.sigPlan), axisName(C.sigPlan)));
+  L.push(I + t('Signal entry: {0} (front view), RJ45 jumpers: {1}, feeds: {2}', entryName(s.sigV, s.sigH), C.sigJumpers, C.sigPlan.M));
+  C.circuits.forEach(c => L.push(I + I + t('P{0}: {1} cab, {2} A peak, {3}', c.idx + 1, c.n, f1(c.peakA), PHASE_NAME[c.phase])));
+  C.warnings.forEach(w => L.push(I + '! ' + w[1]));
+  return L.join('\n');
+}
+
+function fullSpec(calcs, V) {
+  const p = state.project, pv = calcs[0] ? calcs[0].pv : 220, I = '  ';
+  const L = [];
+  L.push(t('LED CALC PRO - TECH SPEC'));
+  L.push(t('Project: {0}', p.name) + (p.venue ? ' | ' + t('Venue: {0}', p.venue) : ''));
+  L.push(t('Mains: {0} V 3-phase ({1} V per phase) | {2}', p.voltage, pv, new Date().toISOString().slice(0, 10)));
+  L.push('');
+  L.push(t('VENUE SUMMARY'));
+  L.push(I + t('Screens: {0}, cabinets: {1}, area: {2} m2, {3} MP', V.screens, V.cabs, f2(V.area), (V.pixels / 1e6).toFixed(2)));
+  L.push(I + t('Total power: peak {0} kW / working {1} kW', f2(V.peakW / 1000), f2(V.avgW / 1000)));
+  L.push(I + t('Phase load peak: {0}', phStr(V.phases, 'peakA', ' ' + t('A'))));
+  L.push(I + t('Phase load working: {0}', phStr(V.phases, 'avgA', ' ' + t('A'))));
+  L.push(I + t('Min. feed per phase: {0} A (peak) / {1} A (working)', V.feedPeak, V.feedAvg));
+  L.push(I + t('Breakers: {0} x 16 A, {1} x 32 A ({2} circuits)', V.br[16], V.br[32], V.circuits));
+  L.push(I + t('Signal ports: {0}, RJ45 jumpers: {1}', V.ports, V.sigJumpers));
+  L.push(I + t('PowerCON jumpers: {0}, power feeds: {1}', V.pwrJumpers, V.circuits));
+  L.push('');
+  L.push(t('SCREENS'));
+  calcs.forEach((C, i) => { L.push(screenSpec(C, i)); L.push(''); });
+  return L.join('\n').trim();
+}
+
+/* ============================ UI: form ============================ */
+const FORM = [
+  { t: 'Screen & cabinet', open: true, f: [
+    ['name', 'Screen name', 'text', 'w'],
+    ['preset', 'Cabinet preset', 'select', 'w', [['500x500', '500 × 500 mm'], ['500x1000', '500 × 1000 mm'], ['960x960', '960 × 960 mm'], ['custom', 'Custom']]],
+    ['cabW', 'Cabinet width, mm', 'number', '', { min: 100, max: 2000, step: 1 }],
+    ['cabH', 'Cabinet height, mm', 'number', '', { min: 100, max: 2000, step: 1 }],
+    ['pitch', 'Pixel pitch, mm', 'number', '', { min: 0.4, max: 50, step: 0.01 }],
+    ['cabPeak', 'Peak power / cab, W', 'number', '', { min: 1, max: 5000, step: 1 }]
+  ] },
+  { t: 'Size & grid', open: true, f: [
+    ['tW', 'Target width, m', 'number', '', { min: 0.1, step: 0.1 }],
+    ['tH', 'Target height, m', 'number', '', { min: 0.1, step: 0.1 }],
+    ['cols', 'Columns', 'number', '', { min: 1, max: 200, step: 1 }],
+    ['rows', 'Rows', 'number', '', { min: 1, max: 200, step: 1 }]
+  ], note: 'Target size auto-calculates the grid (rounded to whole cabinets). Editing the grid updates the size.' },
+  { t: '⚡ Power & phases', open: true, f: [
+    ['avgPct', 'Working load, % of peak', 'number', '', { min: 5, max: 100, step: 1 }],
+    ['breaker', 'Breaker', 'select', '', [['16', '16 A'], ['32', '32 A']]],
+    ['headroom', 'Safety headroom, %', 'number', '', { min: 0, max: 50, step: 1 }],
+    ['sizeBy', 'Size circuits on', 'select', '', [['peak', 'Peak power'], ['avg', 'Working power']]],
+    ['pwrOverride', 'Circuits (0 = auto)', 'number', '', { min: 0, max: 200, step: 1 }],
+    ['pwrAxis', 'Slice by', 'select', '', [['auto', 'Auto'], ['cols', 'Columns'], ['rows', 'Rows']]],
+    ['pwrV', '⚡ Power IN (vertical)', 'select', '', [['bottom', 'Bottom'], ['top', 'Top']]],
+    ['pwrH', '⚡ Power IN (horizontal)', 'select', '', [['left', 'Left'], ['right', 'Right']]]
+  ], note: 'Entry corners are defined in Front View.' },
+  { t: 'Signal (RJ45)', open: true, f: [
+    ['portPx', 'Pixels per port', 'number', '', { min: 1000, step: 1000 }],
+    ['sigOverride', 'Ports (0 = auto)', 'number', '', { min: 0, max: 200, step: 1 }],
+    ['sigAxis', 'Slice by', 'select', '', [['auto', 'Auto'], ['cols', 'Columns'], ['rows', 'Rows']]],
+    ['sigV', 'Signal entry (vertical)', 'select', '', [['bottom', 'Bottom'], ['top', 'Top']]],
+    ['sigH', 'Signal entry (horizontal)', 'select', '', [['left', 'Left'], ['right', 'Right']]]
+  ], note: '655360 px ≈ 1 Gbit port at 8 bit/60 Hz.' }
+];
+
+function buildForm() {
+  $('#form').innerHTML = FORM.map(sec => `<details ${sec.open ? 'open' : ''}><summary>${t(sec.t)}</summary><div class="fg">` +
+    sec.f.map(([k, label, type, cls, extra]) => {
+      let inp;
+      if (type === 'select') inp = `<select data-k="${k}">${extra.map(([v, l]) => `<option value="${v}">${t(l)}</option>`).join('')}</select>`;
+      else inp = `<input data-k="${k}" type="${type}" ${type === 'number' ? Object.entries(extra || {}).map(([a, b]) => `${a}="${b}"`).join(' ') : ''}>`;
+      return `<div class="f ${cls}"><label>${t(label)}</label>${inp}</div>`;
+    }).join('') + `</div>${sec.note ? `<div class="note">${t(sec.note)}</div>` : ''}</details>`).join('');
+}
+
+function syncForm() {
+  const s = active();
+  $$('#form [data-k]').forEach(el => {
+    if (el === document.activeElement) return;
+    el.value = s[el.dataset.k];
+  });
+}
+
+const NUMERIC = ['cabW', 'cabH', 'pitch', 'cabPeak', 'tW', 'tH', 'cols', 'rows', 'avgPct', 'breaker', 'headroom', 'portPx', 'sigOverride', 'pwrOverride'];
+function regrid(s) {
+  s.cols = clamp(Math.round(s.tW * 1000 / s.cabW), 1, 200);
+  s.rows = clamp(Math.round(s.tH * 1000 / s.cabH), 1, 200);
+}
+function setField(k, raw) {
+  const s = active();
+  if (NUMERIC.includes(k)) {
+    const v = parseFloat(raw);
+    if (!Number.isFinite(v)) return;
+    s[k] = v;
+  } else s[k] = raw;
+  switch (k) {
+    case 'preset':
+      if (PRESETS[raw]) { const p = PRESETS[raw]; s.cabW = p.w; s.cabH = p.h; s.cabPeak = p.peak; regrid(s); }
+      break;
+    case 'cabW': case 'cabH':
+      s.preset = 'custom'; regrid(s); break;
+    case 'tW': case 'tH': regrid(s); break;
+    case 'cols': case 'rows': {
+      const c = clean(s);
+      s.tW = +(c.cols * c.cabW / 1000).toFixed(3); s.tH = +(c.rows * c.cabH / 1000).toFixed(3); break;
+    }
+  }
+  syncForm();
+  render();
+}
+
+/* ============================ UI: render ============================ */
+let calcs = [], venue = null, view = { z: 1, x: 0, y: 0 }, hover = null, rafId = 0;
+
+function recalc() {
+  calcs = state.screens.map(s => compute(s, state.project));
+  venue = venueSummary(calcs, state.project);
+}
+const activeCalc = () => calcs[state.screens.findIndex(s => s.id === state.activeId)] || calcs[0];
+
+function render() {
+  recalc();
+  renderScreens();
+  renderSummary();
+  $('#spec').value = fullSpec(calcs, venue);
+  requestDraw();
+  saveState();
+}
+
+function renderScreens() {
+  $('#screens').innerHTML = state.screens.map((s, i) => {
+    const C = calcs[i];
+    return `<div class="sitem ${s.id === state.activeId ? 'act' : ''}" data-id="${s.id}">
+      <div class="n"><b>${esc(s.name)}</b><small>${f2(C.widthM)}×${f2(C.heightM)} ${t('m')} · ${C.cabs} ${t('Cab').toLowerCase()} · ${f1(C.peakW / 1000)} ${t('kW')}</small></div>
+      <button class="btn sm" data-act="dup" title="Duplicate">⧉</button>
+      <button class="btn sm" data-act="del" title="Remove">✕</button></div>`;
+  }).join('');
+}
+
+function phaseBlock(phases, key) {
+  const mx = Math.max(1, ...phases.map(p => p[key]));
+  return `<div class="ph">` + phases.map((p, i) => `<div style="border-color:${PHASE_COL[i]}"><small>${PHASE_NAME[i]}</small><b>${f1(p[key])} ${t('A')}</b><small>${f2(p[key === 'peakA' ? 'peakW' : 'avgW'] / 1000)} ${t('kW')} · ${p.circuits} ${t('ckt')}</small><div class="bar"><span style="width:${p[key] / mx * 100}%;background:${PHASE_COL[i]}"></span></div></div>`).join('') + `</div>`;
+}
+const kv = rows => `<table class="kv">${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>`;
+
+function renderSummary() {
+  const C = activeCalc(), V = venue, s = C.s, pv = C.pv, A = t('A'), KW = t('kW'), M = t('m');
+  const msgs = C.warnings.map(([lv, m]) => `<div class="msg ${lv}">${esc(m)}</div>`).join('') || `<div class="msg ok">${t('No issues detected for this screen.')}</div>`;
+  const ckts = C.circuits.map(c => `<tr><td>P${c.idx + 1}</td><td class="r">${c.n}</td><td class="r">${f1(c.peakA)} ${A}</td><td class="r">${f1(c.avgA)} ${A}</td><td style="color:${PHASE_COL[c.phase]}">${PHASE_NAME[c.phase]}</td></tr>`).join('');
+  $('#tabSum').innerHTML = `
+    <h3 style="margin:0 0 6px;font-size:12px;color:var(--mut);text-transform:uppercase">${t('Venue summary · {0} screen(s)', V.screens)}</h3>
+    ${kv([
+      [t('Cabinets / area'), `${V.cabs} / ${f2(V.area)} ${M}²`],
+      [t('Total power (peak)'), `${f2(V.peakW / 1000)} ${KW}`],
+      [t('Total power (working)'), `${f2(V.avgW / 1000)} ${KW}`],
+      [t('Min. feed per phase'), t('{0} A peak · {1} A working', V.feedPeak, V.feedAvg)],
+      [t('Phase imbalance (peak)'), `${f1(V.imbalance)} %`],
+      [t('Breakers'), `${V.br[16]} × 16 ${A} · ${V.br[32]} × 32 ${A}`],
+      [t('Signal ports / RJ45 jumpers'), `${V.ports} / ${V.sigJumpers}`],
+      [t('⚡ Power feeds / PowerCON jumpers'), `${V.circuits} / ${V.pwrJumpers}`]
+    ])}
+    <div style="font-size:11px;color:var(--mut);margin-top:6px">${t('Phase current — peak')}</div>${phaseBlock(V.phases, 'peakA')}
+    <div style="font-size:11px;color:var(--mut)">${t('Phase current — working')}</div>${phaseBlock(V.phases, 'avgA')}
+    <hr style="border:0;border-top:1px solid var(--line);margin:10px 0">
+    <h3 style="margin:0 0 6px;font-size:12px;color:var(--acc);text-transform:uppercase">${esc(s.name)}</h3>
+    ${msgs}
+    ${kv([
+      [t('Size'), t('{0} × {1} m · {2}×{3} cab', f2(C.widthM), f2(C.heightM), s.cols, s.rows)],
+      [t('Resolution'), `${C.resW} × ${C.resH} ${t('px')}`],
+      [t('Power peak / working'), `${f2(C.peakW / 1000)} / ${f2(C.avgW / 1000)} ${KW}`],
+      [t('Phase voltage'), `${pv} ${t('V')}`],
+      [t('Max cab / circuit'), t('{0} ({1} A usable)', C.pwrMax, f1(C.usableA))],
+      [t('Circuits'), `${C.circuits.length} × ${s.breaker} ${A} · ${slicePattern(C.pwrPlan)} ${axisName(C.pwrPlan)}`],
+      [t('Signal ports'), `${C.sigPlan.M} · ${slicePattern(C.sigPlan)} ${axisName(C.sigPlan)}`],
+      [t('Max cab / port'), `${C.sigMax}`],
+      [t('RJ45 jumpers'), `${C.sigJumpers}`],
+      [t('PowerCON jumpers'), `${C.pwrJumpers}`]
+    ])}
+    <table style="margin-top:8px"><tr><th>${t('Ckt')}</th><th class="r">${t('Cab')}</th><th class="r">${t('Peak')}</th><th class="r">${t('Work')}</th><th>${t('Ph')}</th></tr>${ckts}</table>`;
+}
+
+/* ============================ Canvas interaction ============================ */
+const cv = $('#cv'), cx = cv.getContext('2d');
+function viewOpts() {
+  const u = state.ui;
+  return { view: u.view, fill: u.fill, sig: u.sig, pwr: u.pwr, labels: u.labels, theme: 'dark', margin: 44, hover };
+}
+function requestDraw() { if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; draw(); }); }
+function draw() {
+  const rect = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(rect.width * dpr)), h = Math.max(1, Math.round(rect.height * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx.fillStyle = THEMES.dark.bg; cx.fillRect(0, 0, rect.width, rect.height);
+  const C = activeCalc();
+  if (!C) return;
+  cx.save();
+  cx.translate(view.x, view.y); cx.scale(view.z, view.z);
+  drawLayout(cx, C, { x: 0, y: 0, w: rect.width, h: rect.height }, viewOpts());
+  cx.restore();
+}
+function cellAt(ev) {
+  const C = activeCalc(), rect = cv.getBoundingClientRect();
+  const g = layoutGeom(C, { x: 0, y: 0, w: rect.width, h: rect.height }, 44);
+  const px = (ev.clientX - rect.left - view.x) / view.z, py = (ev.clientY - rect.top - view.y) / view.z;
+  const sc = Math.floor((px - g.ox) / g.cw), r = Math.floor((py - g.oy) / g.ch);
+  const { cols, rows } = C.s;
+  if (sc < 0 || r < 0 || sc >= cols || r >= rows) return null;
+  return { c: state.ui.view === 'rear' ? cols - 1 - sc : sc, r };
+}
+let drag = null;
+cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; cv.setPointerCapture(e.pointerId); cv.classList.add('drag'); });
+cv.addEventListener('pointerup', () => { drag = null; cv.classList.remove('drag'); });
+cv.addEventListener('pointermove', e => {
+  if (drag) { view.x = drag.vx + e.clientX - drag.x; view.y = drag.vy + e.clientY - drag.y; requestDraw(); return; }
+  const cell = cellAt(e), tip = $('#tip');
+  hover = cell;
+  if (cell) {
+    const C = activeCalc(), sg = C.sig.grid[cell.r][cell.c], pg = C.pwr.grid[cell.r][cell.c], cir = C.circuits[pg.b];
+    tip.textContent = t('Cabinet col {0}, row {1}', cell.c + 1, cell.r + 1) + '\n' + t('Signal: port {0}, #{1}', sg.b + 1, sg.i + 1) + '\n' + t('⚡ Power: circuit {0}, #{1}, {2}', pg.b + 1, pg.i + 1, PHASE_NAME[cir.phase]);
+    const wr = $('#cwrap').getBoundingClientRect();
+    tip.style.display = 'block';
+    tip.style.left = Math.max(0, Math.min(e.clientX - wr.left + 14, wr.width - 190)) + 'px';
+    tip.style.top = Math.max(0, Math.min(e.clientY - wr.top + 14, wr.height - 70)) + 'px';
+  } else tip.style.display = 'none';
+  requestDraw();
+});
+cv.addEventListener('pointerleave', () => { hover = null; $('#tip').style.display = 'none'; requestDraw(); });
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = cv.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const nz = clamp(view.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 0.3, 30), k = nz / view.z;
+  view.x = mx - (mx - view.x) * k; view.y = my - (my - view.y) * k; view.z = nz;
+  requestDraw();
+}, { passive: false });
+const fitView = () => { view = { z: 1, x: 0, y: 0 }; requestDraw(); };
+cv.addEventListener('dblclick', fitView);
+new ResizeObserver(requestDraw).observe($('#cwrap'));
+
+/* ============================ Export: PNG / PDF ============================ */
+/* Side list of ports (signal) or circuits (power) with the entry cabinet of each. */
+function drawRouteTable(g, C, mode, x, y, w, h) {
+  const isSig = mode === 'sig', B = isSig ? C.sig : C.pwr, n = B.branches.length;
+  g.save();
+  g.textBaseline = 'middle'; g.textAlign = 'left';
+  g.fillStyle = '#000'; g.font = 'bold 42px system-ui,sans-serif';
+  g.fillText(isSig ? t('Port list') : t('⚡ Circuit list'), x, y + 30);
+  const top = y + 100, rowH = clamp((h - 120) / (n + 1), 24, 54), fs = rowH * 0.62;
+  const maxRows = Math.max(1, Math.floor((h - 120) / rowH) - 1);
+  const cx = [0, 0.12, 0.25, 0.7].map(f => x + f * w), pre = isSig ? 'S' : 'P';
+  g.fillStyle = '#555'; g.font = `bold ${fs}px system-ui,sans-serif`;
+  [pre, t('Cab.'), t('Entry'), isSig ? t('px') : t('A') + ' / ' + t('Phase')].forEach((hd, i) => g.fillText(hd, cx[i], top));
+  g.strokeStyle = '#999'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, top + rowH * 0.55); g.lineTo(x + w, top + rowH * 0.55); g.stroke();
+  g.font = `${fs}px system-ui,sans-serif`;
+  B.branches.slice(0, maxRows).forEach((b, i) => {
+    const yy = top + (i + 1) * rowH, st = b.cells[0];
+    g.fillStyle = isSig ? THEMES.light.sig : THEMES.light.pwr; g.fillText(`${pre}${i + 1}`, cx[0], yy);
+    g.fillStyle = '#000';
+    g.fillText(String(b.cells.length), cx[1], yy);
+    g.fillText(`${t('col')} ${st.c + 1} / ${t('row')} ${st.r + 1}`, cx[2], yy);
+    if (isSig) g.fillText(String(b.cells.length * C.pxW * C.pxH), cx[3], yy);
+    else {
+      const c = C.circuits[i], a = `${f1(c.peakA)} ${t('A')}  `;
+      g.fillText(a, cx[3], yy);
+      g.fillStyle = PHASE_COL[c.phase]; g.fillText(PHASE_NAME[c.phase], cx[3] + g.measureText(a).width, yy);
+    }
+  });
+  if (n > maxRows) { g.fillStyle = '#555'; g.fillText(`… +${n - maxRows}`, cx[0], top + (maxRows + 1) * rowH); }
+  g.restore();
+}
+
+/* mode: 'sig' | 'pwr' | 'both' */
+function renderBlueprint(C, sheet, total, mode) {
+  mode = mode || 'both';
+  const W = 3508, H = 2480; // A4 landscape @ 300 dpi
+  const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
+  const g = cvs.getContext('2d');
+  const s = C.s, p = state.project, u = state.ui;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#000'; g.lineWidth = 6; g.strokeRect(50, 50, W - 100, H - 100);
+  g.lineWidth = 2; g.strokeRect(62, 62, W - 124, H - 124);
+
+  const tbH = 400, tbY = H - 62 - tbH, split = mode !== 'both', tableW = split ? 800 : 0;
+  const box = { x: 90, y: 90, w: W - 180 - tableW, h: tbY - 90 - 20 };
+  drawLayout(g, C, box, {
+    view: u.view, fill: mode === 'sig' ? 'signal' : mode === 'pwr' ? (u.fill === 'phase' ? 'phase' : 'power') : u.fill,
+    sig: mode !== 'pwr', pwr: mode !== 'sig', labels: true, theme: 'light', margin: 130, title: 46, legend: true
+  });
+  if (split) {
+    g.strokeStyle = '#999'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(box.x + box.w + 20, 110); g.lineTo(box.x + box.w + 20, tbY - 30); g.stroke();
+    drawRouteTable(g, C, mode, box.x + box.w + 60, 110, tableW - 100, tbY - 150);
+  }
+
+  g.strokeStyle = '#000'; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(62, tbY); g.lineTo(W - 62, tbY); g.stroke();
+  const cw = (W - 124) / 5;
+  const fit = (t, x, y, maxW, size, bold) => {
+    let sz = size; g.font = `${bold ? 'bold ' : ''}${sz}px system-ui,sans-serif`;
+    while (g.measureText(t).width > maxW && sz > 14) { sz -= 1; g.font = `${bold ? 'bold ' : ''}${sz}px system-ui,sans-serif`; }
+    g.fillText(t, x, y);
+  };
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+  const A = t('A');
+  const kind = mode === 'sig' ? 'Signal routing sheet' : mode === 'pwr' ? '⚡ Power routing sheet' : 'Combined routing sheet';
+  const cHead = ['LED CALC PRO', t('Project: {0}', p.name), t('Venue: {0}', p.venue || '-'), t('Screen: {0}', s.name), t('Drawn by: {0}', p.author || '-')];
+  const cScr = [t('SCREEN'), t('Size: {0} x {1} m', f2(C.widthM), f2(C.heightM)), t('Grid: {0} x {1} = {2} cab', s.cols, s.rows, C.cabs), t('Cabinet: {0} x {1} mm', s.cabW, s.cabH), t('Pitch {0} mm · {1}x{2} px', s.pitch, C.resW, C.resH)];
+  const sigTxt = [t('Signal: {0} ports · {1} {2}', C.sigPlan.M, slicePattern(C.sigPlan), axisName(C.sigPlan)), t('Signal entry: {0} (front)', entryName(s.sigV, s.sigH)), t('RJ45 jumpers: {0}', C.sigJumpers), t('Max {0} cab / port', C.sigMax)];
+  const pwrTxt = [t('{0} x {1} A · {2} V 3ph', C.circuits.length, s.breaker, p.voltage), t('Peak A: {0}', C.phases.map(q => f1(q.peakA)).join(' / ')), t('Slices: {0} {1}', slicePattern(C.pwrPlan), axisName(C.pwrPlan)), t('⚡ Power IN: {0} (front)', entryName(s.pwrV, s.pwrH))];
+  const cPow = [t('POWER'), t('Peak {0} kW · Work {1} kW', f2(C.peakW / 1000), f2(C.avgW / 1000)), pwrTxt[0], pwrTxt[1], pwrTxt[2]];
+  const cRes = [t('SIGNAL'), ...sigTxt.slice(0, 2), t('{0} x {1} px', C.resW, C.resH), t('Port capacity: {0} px', s.portPx)];
+  const cPwr = [t('⚡ POWER ROUTING'), pwrTxt[3], t('PowerCON jumpers: {0}', C.pwrJumpers), t('Max {0} cab / circuit', C.pwrMax), t('Phase voltage: {0} V', C.pv)];
+  const cBoth = [t('ROUTING'), sigTxt[0], sigTxt[1], pwrTxt[3], t('Jumpers: RJ45 {0} · PowerCON {1}', C.sigJumpers, C.pwrJumpers)];
+  const cDraw = [t('DRAWING'), t('Date: {0}', new Date().toISOString().slice(0, 10)), t('Sheet: {0} / {1}', sheet, total), t('View: {0}', t(u.view === 'rear' ? 'Rear (rigging)' : 'Front')), t(kind)];
+  const cSigSum = [t('SIGNAL ROUTING'), ...sigTxt];
+  const colsTxt = mode === 'sig' ? [cHead, cScr, cSigSum, cRes, cDraw] : mode === 'pwr' ? [cHead, cScr, cPow, cPwr, cDraw] : [cHead, cScr, cPow, cBoth, cDraw];
+  colsTxt.forEach((lines, i) => {
+    const x = 62 + i * cw;
+    if (i) { g.beginPath(); g.moveTo(x, tbY); g.lineTo(x, H - 62); g.stroke(); }
+    g.fillStyle = '#555'; fit(lines[0], x + 30, tbY + 62, cw - 60, 36, true);
+    g.fillStyle = '#000';
+    lines.slice(1).forEach((t, j) => fit(t, x + 30, tbY + 130 + j * 66, cw - 60, 40, i === 0 && j === 0));
+  });
+  return cvs;
+}
+
+/* Venue overview sheet (generated only when the project has more than one screen). */
+function renderOverview(sheet, total) {
+  const W = 3508, H = 2480, p = state.project, V = venue, A = t('A');
+  const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
+  const g = cvs.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#000'; g.lineWidth = 6; g.strokeRect(50, 50, W - 100, H - 100);
+  g.lineWidth = 2; g.strokeRect(62, 62, W - 124, H - 124);
+  g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = '#000';
+  g.font = 'bold 72px system-ui,sans-serif'; g.fillText(t('VENUE OVERVIEW'), 120, 150);
+  g.fillStyle = '#555'; g.font = '44px system-ui,sans-serif'; g.fillText(p.name + (p.venue ? ' — ' + p.venue : ''), 120, 230);
+  const X = [120, 210, 1020, 1500, 1820, 2120, 2420, 2780, 3000, 3230];
+  const heads = ['#', t('Screen'), t('Size, m'), t('Cabinets'), t('Peak, kW'), t('Work, kW'), t('Circuits'), t('Ports'), t('RJ45 jmp'), t('PC jmp')];
+  const n = calcs.length, rowH = Math.min(84, 1100 / (n + 2)), fs = rowH * 0.52, y0 = 330;
+  g.fillStyle = '#555'; g.font = `bold ${fs}px system-ui,sans-serif`;
+  heads.forEach((h, i) => g.fillText(h, X[i], y0));
+  g.strokeStyle = '#000'; g.lineWidth = 3; g.beginPath(); g.moveTo(120, y0 + rowH * 0.55); g.lineTo(W - 120, y0 + rowH * 0.55); g.stroke();
+  const row = (yy, v, bold) => {
+    g.fillStyle = '#000';
+    v.forEach((txt, i) => {
+      g.font = `${bold ? 'bold ' : ''}${fs}px system-ui,sans-serif`;
+      if (i === 1) { let s = txt; while (g.measureText(s).width > X[2] - X[1] - 30 && s.length > 1) s = s.slice(0, -2) + '…'; g.fillText(s, X[i], yy); }
+      else g.fillText(txt, X[i], yy);
+    });
+  };
+  calcs.forEach((C, i) => row(y0 + (i + 1) * rowH, [String(i + 1), C.s.name, `${f2(C.widthM)} x ${f2(C.heightM)}`, String(C.cabs), f2(C.peakW / 1000), f2(C.avgW / 1000), `${C.circuits.length} x ${C.s.breaker}${A}`, String(C.sigPlan.M), String(C.sigJumpers), String(C.pwrJumpers)]));
+  const ty = y0 + (n + 1) * rowH;
+  g.beginPath(); g.moveTo(120, ty - rowH * 0.45); g.lineTo(W - 120, ty - rowH * 0.45); g.stroke();
+  row(ty + rowH * 0.1, ['', t('Total'), f2(V.area) + ' ' + t('m') + '²', String(V.cabs), f2(V.peakW / 1000), f2(V.avgW / 1000), String(V.circuits), String(V.ports), String(V.sigJumpers), String(V.pwrJumpers)], true);
+
+  const tbH = 400, tbY = H - 62 - tbH;
+  const by = Math.min(ty + rowH * 1.6 + 60, tbY - 380), mx = Math.max(1, ...V.phases.map(q => q.peakA));
+  g.fillStyle = '#000'; g.font = 'bold 44px system-ui,sans-serif'; g.fillText(t('Phase load (peak A)'), 120, by);
+  V.phases.forEach((q, i) => {
+    const yy = by + 80 + i * 80, bw = 1800 * q.peakA / mx;
+    g.fillStyle = '#000'; g.font = '40px system-ui,sans-serif'; g.fillText(PHASE_NAME[i], 120, yy);
+    g.fillStyle = PHASE_COL[i]; g.fillRect(230, yy - 26, bw, 52);
+    g.fillStyle = '#000'; g.fillText(`${f1(q.peakA)} ${A}  (${f1(q.avgA)} ${A} ${t('working')})`, 230 + bw + 24, yy);
+  });
+
+  g.strokeStyle = '#000'; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(62, tbY); g.lineTo(W - 62, tbY); g.stroke();
+  const cols = [
+    ['LED CALC PRO', t('Project: {0}', p.name), t('Venue: {0}', p.venue || '-'), t('Drawn by: {0}', p.author || '-')],
+    [t('VENUE OVERVIEW'), t('Screens: {0}', V.screens), t('Cabinets: {0} · {1} m2', V.cabs, f2(V.area)), t('Peak {0} kW · Work {1} kW', f2(V.peakW / 1000), f2(V.avgW / 1000))],
+    [t('POWER'), t('Min. feed per phase: {0} A (peak) / {1} A (working)', V.feedPeak, V.feedAvg), t('Breakers: {0} x 16 A, {1} x 32 A', V.br[16], V.br[32])],
+    [t('ROUTING'), t('Signal ports: {0}, RJ45 jumpers: {1}', V.ports, V.sigJumpers), t('PowerCON jumpers: {0}', V.pwrJumpers), t('Power feeds: {0}', V.circuits)],
+    [t('DRAWING'), t('Date: {0}', new Date().toISOString().slice(0, 10)), t('Sheet: {0} / {1}', sheet, total), t('Format: A4 landscape')]
+  ];
+  const cw = (W - 124) / 5;
+  cols.forEach((lines, i) => {
+    const x = 62 + i * cw;
+    g.textBaseline = 'alphabetic';
+    if (i) { g.beginPath(); g.moveTo(x, tbY); g.lineTo(x, H - 62); g.stroke(); }
+    lines.forEach((txt, j) => {
+      let sz = j ? 40 : 36; g.fillStyle = j ? '#000' : '#555';
+      const ft = () => { g.font = `${!j || (i === 0 && j === 1) ? 'bold ' : ''}${sz}px system-ui,sans-serif`; };
+      ft(); while (g.measureText(txt).width > cw - 60 && sz > 14) { sz--; ft(); }
+      g.fillText(txt, x + 30, j ? tbY + 64 + j * 66 : tbY + 62);
+    });
+  });
+  return cvs;
+}
+
+/* Renders sheets one at a time (keeps memory low) and hands each to cb(name, canvas). */
+function forEachSheet(cb) {
+  const split = state.ui.exp !== 'combined', n = calcs.length;
+  const total = (n > 1 ? 1 : 0) + n * (split ? 2 : 1);
+  let k = 1;
+  if (n > 1) cb('00_overview', renderOverview(k++, total));
+  calcs.forEach((C, i) => {
+    const nm = `${String(i + 1).padStart(2, '0')}_${fileBase(C.s.name)}`;
+    if (split) {
+      cb(nm + '_signal', renderBlueprint(C, k++, total, 'sig'));
+      cb(nm + '_power', renderBlueprint(C, k++, total, 'pwr'));
+    } else cb(nm, renderBlueprint(C, k++, total, 'both'));
+  });
+  return total;
+}
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+const fileBase = name => String(name).replace(/[^\w.-]+/g, '_').slice(0, 60) || 'file';
+const dataUrlBytes = url => {
+  const bin = atob(url.split(',')[1]), d = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) d[i] = bin.charCodeAt(i);
+  return d;
+};
+
+/* Minimal ZIP writer (stored, no compression) used to bundle several PNG sheets. */
+const CRC_TABLE = (() => {
+  const tb = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; tb[n] = c >>> 0; }
+  return tb;
+})();
+const crc32 = u => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC_TABLE[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function buildZip(files) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  const u16 = v => [v & 255, (v >> 8) & 255], u32 = v => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  let off = 0;
+  files.forEach(f => {
+    const nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+    const lh = new Uint8Array([0x50, 0x4b, 3, 4, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(sz), ...u32(sz), ...u16(nm.length), ...u16(0), ...nm]);
+    parts.push(lh, f.data);
+    central.push(new Uint8Array([0x50, 0x4b, 1, 2, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(sz), ...u32(sz), ...u16(nm.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off), ...nm]));
+    off += lh.length + sz;
+  });
+  const cdSize = central.reduce((a, c) => a + c.length, 0);
+  const end = new Uint8Array([0x50, 0x4b, 5, 6, ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(off), ...u16(0)]);
+  return new Blob([...parts, ...central, end], { type: 'application/zip' });
+}
+
+function exportPng() {
+  const files = [];
+  forEachSheet((name, c) => files.push({ name: name + '.png', data: dataUrlBytes(c.toDataURL('image/png')) }));
+  const base = fileBase(state.project.name);
+  if (files.length === 1) download(new Blob([files[0].data], { type: 'image/png' }), `${base}_${files[0].name}`);
+  else download(buildZip(files), `${base}_blueprints.zip`);
+  toast(t('Exported {0} sheet(s)', files.length));
+}
+
+/* Minimal PDF writer: one A4-landscape page (842 x 595 pt) per JPEG image. */
+function buildPdf(images) {
+  const enc = new TextEncoder(), chunks = [], offs = [];
+  let len = 0;
+  const push = x => { const u = typeof x === 'string' ? enc.encode(x) : x; chunks.push(u); len += u.length; };
+  const obj = (id, body) => { offs[id] = len; push(`${id} 0 obj\n${body}\nendobj\n`); };
+  push('%PDF-1.4\n');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Count ${images.length} /Kids [${images.map((_, i) => `${3 + i * 3} 0 R`).join(' ')}] >>`);
+  images.forEach((im, i) => {
+    const pid = 3 + i * 3, cid = pid + 1, iid = pid + 2;
+    obj(pid, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /XObject << /Im0 ${iid} 0 R >> >> /Contents ${cid} 0 R >>`);
+    const content = 'q 842 0 0 595 0 0 cm /Im0 Do Q';
+    obj(cid, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    offs[iid] = len;
+    push(`${iid} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`);
+    push(im.data); push('\nendstream\nendobj\n');
+  });
+  const n = 3 + images.length * 3, xref = len;
+  push(`xref\n0 ${n}\n0000000000 65535 f \n`);
+  for (let i = 1; i < n; i++) push(String(offs[i]).padStart(10, '0') + ' 00000 n \n');
+  push(`trailer\n<< /Size ${n} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  const out = new Uint8Array(len); let pos = 0;
+  chunks.forEach(c => { out.set(c, pos); pos += c.length; });
+  return out;
+}
+
+function exportPdf() {
+  const imgs = [];
+  forEachSheet((name, c) => imgs.push({ data: dataUrlBytes(c.toDataURL('image/jpeg', 0.92)), w: c.width, h: c.height }));
+  download(new Blob([buildPdf(imgs)], { type: 'application/pdf' }), `${fileBase(state.project.name)}_blueprint.pdf`);
+  toast(t('Exported {0} sheet(s)', imgs.length));
+}
+
+/* ============================ Misc UI ============================ */
+let toastTimer = 0;
+function toast(msg, bad) {
+  const t = $('#toast');
+  t.textContent = msg; t.className = bad ? 'bad' : ''; t.style.display = 'block';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3200);
+}
+
+function syncChrome() {
+  const u = state.ui, p = state.project;
+  $$('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === u.view));
+  $('#fillSel').value = u.fill;
+  $('#expSel').value = u.exp;
+  $('#chkSig').checked = u.sig; $('#chkPwr').checked = u.pwr; $('#chkLbl').checked = u.labels;
+  $$('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === u.tab));
+  $('#tabSum').hidden = u.tab !== 'sum'; $('#tabSpec').hidden = u.tab !== 'spec';
+  $$('[data-p]').forEach(el => { if (el !== document.activeElement) el.value = p[el.dataset.p]; });
+  $('#langSel').value = lang;
+  applyStatic();
+}
+
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text).then(() => true, () => false);
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove();
+  return Promise.resolve(ok);
+}
+
+function importText(text) {
+  const r = LedMask.parse(text);
+  Object.assign(state.project, r.project);
+  r.screens.forEach((o, i) => {
+    const s = Object.assign(defaultScreen(state.screens.length + 1), o);
+    if (PRESETS[s.preset] && o.cabPeak == null) s.cabPeak = PRESETS[s.preset].peak;
+    const c = clean(s);
+    if (o.cols == null) s.cols = clamp(Math.round(c.tW * 1000 / c.cabW), 1, 200);
+    if (o.rows == null) s.rows = clamp(Math.round(c.tH * 1000 / c.cabH), 1, 200);
+    if (o.tW == null || o.cols != null) s.tW = +(clamp(s.cols, 1, 200) * c.cabW / 1000).toFixed(3);
+    if (o.tH == null || o.rows != null) s.tH = +(clamp(s.rows, 1, 200) * c.cabH / 1000).toFixed(3);
+    state.screens.push(s);
+    if (i === 0) state.activeId = s.id;
+  });
+  return r.screens.length;
+}
+
+function bind() {
+  $('#form').addEventListener('input', e => { const el = e.target.closest('[data-k]'); if (el) setField(el.dataset.k, el.value); });
+  $$('[data-p]').forEach(el => el.addEventListener('input', () => { state.project[el.dataset.p] = el.value; render(); }));
+  $('#screens').addEventListener('click', e => {
+    const item = e.target.closest('.sitem'); if (!item) return;
+    const id = item.dataset.id, act = e.target.closest('[data-act]');
+    if (act && act.dataset.act === 'dup') {
+      const src = state.screens.find(s => s.id === id), copy = Object.assign({}, src, { id: newId(), name: src.name + ' copy' });
+      state.screens.splice(state.screens.indexOf(src) + 1, 0, copy); state.activeId = copy.id;
+    } else if (act && act.dataset.act === 'del') {
+      if (state.screens.length > 1 && !confirm(t('Remove this screen?'))) return;
+      state.screens = state.screens.filter(s => s.id !== id);
+      if (!state.screens.length) state.screens.push(defaultScreen(1));
+      if (!state.screens.some(s => s.id === state.activeId)) state.activeId = state.screens[0].id;
+    } else state.activeId = id;
+    fitView(); syncForm(); render();
+  });
+  $('#btnAdd').onclick = () => { const s = defaultScreen(state.screens.length + 1); state.screens.push(s); state.activeId = s.id; fitView(); syncForm(); render(); };
+  $$('[data-view]').forEach(b => b.onclick = () => { state.ui.view = b.dataset.view; syncChrome(); requestDraw(); saveState(); });
+  $$('[data-tab]').forEach(b => b.onclick = () => { state.ui.tab = b.dataset.tab; syncChrome(); saveState(); });
+  $('#fillSel').onchange = e => { state.ui.fill = e.target.value; requestDraw(); saveState(); };
+  $('#expSel').onchange = e => { state.ui.exp = e.target.value; saveState(); };
+  $('#chkSig').onchange = e => { state.ui.sig = e.target.checked; requestDraw(); saveState(); };
+  $('#chkPwr').onchange = e => { state.ui.pwr = e.target.checked; requestDraw(); saveState(); };
+  $('#chkLbl').onchange = e => { state.ui.labels = e.target.checked; requestDraw(); saveState(); };
+  $('#langSel').onchange = e => { lang = state.ui.lang = e.target.value; buildForm(); syncChrome(); syncForm(); render(); };
+  $('#btnFit').onclick = fitView;
+  $('#btnPng').onclick = () => { try { exportPng(); } catch (e) { toast(t('PNG export failed: {0}', e.message), true); } };
+  $('#btnPdf').onclick = () => { try { exportPdf(); } catch (e) { toast(t('PDF export failed: {0}', e.message), true); } };
+  $('#btnCopy').onclick = async () => toast(await copyText($('#spec').value) ? t('Spec copied to clipboard') : t('Copy failed — select the text manually'), false);
+  $('#btnTxt').onclick = () => download(new Blob([$('#spec').value], { type: 'text/plain' }), `${fileBase(state.project.name)}_spec.txt`);
+  $('#btnSample').onclick = () => download(new Blob([SAMPLE_MASK], { type: 'text/plain' }), 'sample.ledmask');
+  $('#btnImport').onclick = () => $('#fileIn').click();
+  $('#fileIn').onchange = e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try { const n = importText(String(rd.result)); fitView(); syncChrome(); syncForm(); render(); toast(t('Imported {0} screen(s) from {1}', n, f.name)); }
+      catch (err) { toast(t('Import failed: {0}', err.message), true); }
+    };
+    rd.onerror = () => toast(t('Could not read file'), true);
+    rd.readAsText(f);
+  };
+  $('#btnReset').onclick = () => {
+    if (!confirm(t('Reset the project and delete all screens?'))) return;
+    state = defaultState(); state.ui.lang = lang; fitView(); syncChrome(); syncForm(); render();
+  };
+}
+
+/* ============================ Init ============================ */
+loadState();
+lang = state.ui.lang === 'ru' ? 'ru' : 'en';
+buildForm();
+bind();
+syncChrome();
+syncForm();
+render();
+</script>
+</body>
+</html>
