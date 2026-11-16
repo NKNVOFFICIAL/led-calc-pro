@@ -545,7 +545,47 @@ const LedMask = (() => {
     if (PROJECT_MAP[k]) PROJECT_MAP[k](String(v).trim(), prj);
     else if (scr && FIELD_MAP[k]) FIELD_MAP[k](String(v).trim(), scr);
   };
+  /* Native LED Mask Generator project: Apple plist XML (.ledmask) or JSON (.ledmask.json) */
+  const parsePlist = text => {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error(t('Import failed: {0}', 'XML'));
+    const conv = el => {
+      switch (el.tagName) {
+        case 'dict': { const o = {}, k = [...el.children]; for (let i = 0; i + 1 < k.length; i += 2) o[k[i].textContent] = conv(k[i + 1]); return o; }
+        case 'array': return [...el.children].map(conv);
+        case 'integer': return parseInt(el.textContent, 10);
+        case 'real': return parseFloat(el.textContent);
+        case 'true': return true;
+        case 'false': return false;
+        default: return el.textContent;
+      }
+    };
+    return conv(doc.querySelector('plist > *'));
+  };
+  const nativeScreens = d => d && Array.isArray(d.screens) && d.screens.some(x => x && x.cabCols != null && x.cabRows != null);
+  const fromNative = d => {
+    const project = {}, screens = [];
+    if (d.projectName) project.name = String(d.projectName);
+    d.screens.filter(x => x && x.cabCols != null && x.cabRows != null && (!x.kind || x.kind === 'led')).forEach(x => {
+      const o = { name: String(x.name || 'Screen'), cols: +x.cabCols, rows: +x.cabRows };
+      let w = x.physicalWidthM > 0 ? x.physicalWidthM * 1000 / o.cols : 0;
+      let h = x.physicalHeightM > 0 ? x.physicalHeightM * 1000 / o.rows : 0;
+      if (!w || !h) { w = +x.cabWmm || 500; h = +x.cabHmm || 500; }
+      o.cabW = Math.round(w); o.cabH = Math.round(h);
+      const key = o.cabW + 'x' + o.cabH;
+      o.preset = key in PRESETS ? key : 'custom';
+      if (x.cabWpx > 0) o.pitch = +(o.cabW / x.cabWpx).toFixed(3);
+      screens.push(o);
+    });
+    return { project, screens };
+  };
+  const nativeText = text => {
+    if (/<plist[\s>]/.test(text)) return parsePlist(text);
+    if (/^\s*[{\[]/.test(text)) { try { return JSON.parse(text); } catch (e) { return null; } }
+    return null;
+  };
   const parsers = [
+    { id: 'ledmask-native', test: text => nativeScreens(nativeText(text)), parse: text => fromNative(nativeText(text)) },
     { id: 'json', test: t => /^\s*[{\[]/.test(t),
       parse(t) {
         const d = JSON.parse(t);
