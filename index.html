@@ -1145,9 +1145,34 @@ function cellAt(ev) {
   return { c: find(g.xs, rear ? g.tw - lx : lx), r: find(g.ys, ly) };
 }
 let drag = null;
-cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; cv.setPointerCapture(e.pointerId); cv.classList.add('drag'); });
-cv.addEventListener('pointerup', () => { drag = null; cv.classList.remove('drag'); });
+const ptrs = new Map();
+let pinch = null;
+const pinchState = () => { const [a, b] = [...ptrs.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; };
+cv.addEventListener('pointerdown', e => {
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  if (ptrs.size >= 2) { drag = null; pinch = { ...pinchState(), z: view.z, vx: view.x, vy: view.y }; }
+  else { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; cv.classList.add('drag'); }
+});
+const endPtr = e => {
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+  if (ptrs.size === 1) { const p = [...ptrs.values()][0]; drag = { x: p.x, y: p.y, vx: view.x, vy: view.y }; }
+  else if (!ptrs.size) { drag = null; cv.classList.remove('drag'); }
+};
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
 cv.addEventListener('pointermove', e => {
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && ptrs.size >= 2) {
+    const rect = cv.getBoundingClientRect(), s = pinchState();
+    const nz = clamp(pinch.z * s.d / pinch.d, 0.3, 30), k = nz / pinch.z;
+    const m0x = pinch.mx - rect.left, m0y = pinch.my - rect.top;
+    view.z = nz;
+    view.x = (s.mx - rect.left) - (m0x - pinch.vx) * k;
+    view.y = (s.my - rect.top) - (m0y - pinch.vy) * k;
+    requestDraw(); return;
+  }
   if (drag) { view.x = drag.vx + e.clientX - drag.x; view.y = drag.vy + e.clientY - drag.y; requestDraw(); return; }
   const cell = cellAt(e), tip = $('#tip');
   hover = cell;
@@ -1161,7 +1186,7 @@ cv.addEventListener('pointermove', e => {
   } else tip.style.display = 'none';
   requestDraw();
 });
-cv.addEventListener('pointerleave', () => { hover = null; $('#tip').style.display = 'none'; requestDraw(); });
+cv.addEventListener('pointerleave', e => { if (e.pointerType === 'touch') return; hover = null; $('#tip').style.display = 'none'; requestDraw(); });
 cv.addEventListener('wheel', e => {
   e.preventDefault();
   const rect = cv.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
