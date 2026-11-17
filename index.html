@@ -140,6 +140,8 @@ textarea#spec{height:420px;font-family:ui-monospace,Consolas,monospace;font-size
       <label><input type="checkbox" id="chkSig"> <span data-i18n>Signal</span></label>
       <label><input type="checkbox" id="chkPwr"> <span data-i18n>⚡ Power</span></label>
       <label><input type="checkbox" id="chkLbl"> <span data-i18n>Labels</span></label>
+      <label title="Cutout mode: tap cabinets to remove / restore them"><input type="checkbox" id="chkCut"> <span data-i18n>Cutouts</span></label>
+      <button class="btn" id="btnCutClear" data-i18n>Clear</button>
       <span class="spacer"></span>
       <button class="btn" id="btnFit" data-i18n>Fit</button>
       <select id="expSel" title="Export layout">
@@ -201,7 +203,7 @@ const PHASE_NAME = ['L1', 'L2', 'L3'];
 const RU = {
 'Language':'Язык','Project':'Проект','Venue':'Площадка','Drawn by':'Чертёж выполнил','Mains supply':'Питающая сеть',
 '380 V 3-phase (220 V per phase)':'380 В, 3 фазы (220 В на фазу)','220 V 3-phase (127 V per phase)':'220 В, 3 фазы (127 В на фазу)',
-'Help':'Инструкция','Module library':'Библиотека модулей','— Custom / preset —':'— Свой / пресет —','Module: {0}':'Модуль: {0}','Close':'Закрыть','Import .ledmask':'Импорт .ledmask','Sample .ledmask':'Пример .ledmask','Reset':'Сброс','Screens':'Экраны','+ Add':'+ Добавить',
+'Help':'Инструкция','Cutouts':'Вырезы','Clear':'Очистить','Cutout (no module)':'Вырез (модуля нет)','Cutouts (no module): {0}':'Вырезы (без модуля): {0}','Cutout mode: tap cabinets to remove / restore them':'Режим вырезов: нажимайте на ячейки, чтобы убрать / вернуть модуль','Module library':'Библиотека модулей','— Custom / preset —':'— Свой / пресет —','Module: {0}':'Модуль: {0}','Close':'Закрыть','Import .ledmask':'Импорт .ledmask','Sample .ledmask':'Пример .ledmask','Reset':'Сброс','Screens':'Экраны','+ Add':'+ Добавить',
 'Front View':'Вид спереди','Rear View (Rigging)':'Вид сзади (риггинг)',
 'Colour: signal ports':'Цвет: порты сигнала','Colour: power circuits':'Цвет: цепи питания','Colour: phase L1/L2/L3':'Цвет: фазы L1/L2/L3','Colour: none':'Цвет: нет',
 'Signal':'Сигнал','⚡ Power':'⚡ Питание','Labels':'Подписи','Fit':'Вписать',
@@ -332,7 +334,7 @@ const LIB = [
 function defaultScreen(n = 1) {
   return {
     id: newId(), name: 'Screen ' + n,
-    preset: '500x500', model: '', pitchY: 0, cabW: 500, cabH: 500, pitch: 2.6, cabPeak: 200,
+    preset: '500x500', model: '', holes: [], pitchY: 0, cabW: 500, cabH: 500, pitch: 2.6, cabPeak: 200,
     tW: 8, tH: 4, cols: 16, rows: 8, colSpec: '', rowSpec: '',
     avgPct: 35, breaker: 16, headroom: 20, sizeBy: 'peak',
     portPx: 655360,
@@ -398,6 +400,12 @@ function clean(S) {
     if (Array.isArray(arr)) { s[sizeKey] = arr; s[countKey] = arr.length; }
     else s[sizeKey] = new Array(s[countKey]).fill(base);
   }
+  const hs = new Set();
+  (Array.isArray(S.holes) ? S.holes : []).forEach(k => {
+    const m = /^(\d+),(\d+)$/.exec(String(k));
+    if (m && +m[1] < s.cols && +m[2] < s.rows) hs.add(m[1] + ',' + m[2]);
+  });
+  s.holes = hs.size >= s.cols * s.rows ? [] : [...hs];
   return s;
 }
 
@@ -454,7 +462,7 @@ function planSlices(wt, maxCab, override, axisPref) {
 }
 
 /* Builds whole-column / whole-row branches, each routed as a snake starting at the chosen entry corner. */
-function buildBranches(cols, rows, plan, sH, sV) {
+function buildBranches(cols, rows, plan, sH, sV, isHole) {
   const { axis, bounds, M } = plan;
   const grid = Array.from({ length: rows }, () => new Array(cols));
   const slices = [];
@@ -463,7 +471,7 @@ function buildBranches(cols, rows, plan, sH, sV) {
   if (fromEnd) slices.reverse();
   const O = axis === 'cols' ? rows : cols;
   const lineFromEnd = axis === 'cols' ? sV === 'bottom' : sH === 'right';
-  const branches = slices.map(([a, b], bi) => {
+  const branches = slices.map(([a, b]) => {
     const cells = [];
     const idx = [];
     for (let k = a; k < b; k++) idx.push(k);
@@ -471,11 +479,12 @@ function buildBranches(cols, rows, plan, sH, sV) {
     idx.forEach((k, j) => {
       const order = Array.from({ length: O }, (_, i) => i);
       if (lineFromEnd !== (j % 2 === 1)) order.reverse();
-      order.forEach(o => cells.push(axis === 'cols' ? { c: k, r: o } : { c: o, r: k }));
+      order.forEach(o => { const p = axis === 'cols' ? { c: k, r: o } : { c: o, r: k }; if (!isHole(p.c, p.r)) cells.push(p); });
     });
-    cells.forEach((p, i) => { grid[p.r][p.c] = { b: bi, i }; });
     return { cells, size: b - a };
-  });
+  }).filter(b => b.cells.length);
+  branches.forEach((b, bi) => b.cells.forEach((p, i) => { grid[p.r][p.c] = { b: bi, i }; }));
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (!grid[r][c]) grid[r][c] = null;
   return { grid, branches };
 }
 
@@ -485,7 +494,8 @@ const phaseVoltage = project => project.voltage === '220' ? 127 : 220;
 function compute(S, project) {
   const s = clean(S);
   const pv = phaseVoltage(project);
-  const cabs = s.cols * s.rows;
+  const holeSet = new Set(s.holes), isHole = (c, r) => holeSet.has(c + ',' + r);
+  const cabs = s.cols * s.rows - holeSet.size;
   const pxW = Math.max(1, Math.round(s.cabW / s.pitch)), pxH = Math.max(1, Math.round(s.cabH / (s.pitchY || s.pitch)));
   const sigMax = Math.max(1, Math.floor(s.portPx / (pxW * pxH)));
   const usableA = s.breaker * (1 - s.headroom / 100);
@@ -494,12 +504,12 @@ function compute(S, project) {
   // Per-cell loads relative to the base cabinet: pixels for signal, area for power.
   const colW = s.colW, rowH = s.rowH;
   const pxC = colW.map(w => Math.max(1, Math.round(w / s.pitch))), pxR = rowH.map(h => Math.max(1, Math.round(h / (s.pitchY || s.pitch))));
-  const sigWt = rowH.map((_, r) => colW.map((_, c) => pxC[c] * pxR[r] / (pxW * pxH)));
-  const pwrWt = rowH.map((h, r) => colW.map((w, c) => w * h / (s.cabW * s.cabH)));
+  const sigWt = rowH.map((_, r) => colW.map((_, c) => isHole(c, r) ? 0 : pxC[c] * pxR[r] / (pxW * pxH)));
+  const pwrWt = rowH.map((h, r) => colW.map((w, c) => isHole(c, r) ? 0 : w * h / (s.cabW * s.cabH)));
   const sigPlan = planSlices(sigWt, sigMax, s.sigOverride, s.sigAxis);
   const pwrPlan = planSlices(pwrWt, pwrMax, s.pwrOverride, s.pwrAxis);
-  const sig = buildBranches(s.cols, s.rows, sigPlan, s.sigH, s.sigV);
-  const pwr = buildBranches(s.cols, s.rows, pwrPlan, s.pwrH, s.pwrV);
+  const sig = buildBranches(s.cols, s.rows, sigPlan, s.sigH, s.sigV, isHole);
+  const pwr = buildBranches(s.cols, s.rows, pwrPlan, s.pwrH, s.pwrV, isHole);
   sig.branches.forEach(b => { b.px = b.cells.reduce((a, p) => a + pxC[p.c] * pxR[p.r], 0); });
   pwr.branches.forEach(b => { b.w = b.cells.reduce((a, p) => a + pwrWt[p.r][p.c], 0); });
   const peakW = pwrWt.flat().reduce((a, v) => a + v, 0) * s.cabPeak, avgW = peakW * s.avgPct / 100;
@@ -507,8 +517,10 @@ function compute(S, project) {
     { idx: i, n: b.cells.length, peakW: b.w * s.cabPeak, avgW: b.w * s.cabPeak * s.avgPct / 100, phase: 0 }));
   const sumW = colW.reduce((a, v) => a + v, 0), sumH = rowH.reduce((a, v) => a + v, 0);
   const mixed = new Set(colW).size > 1 || new Set(rowH).size > 1;
+  const holeN = holeSet.size;
   const mix = new Map();
-  rowH.forEach(h => colW.forEach(w => mix.set(w + 'x' + h, (mix.get(w + 'x' + h) || 0) + 1)));
+  let area = 0, pixels = 0;
+  rowH.forEach((h, r) => colW.forEach((w, c) => { if (isHole(c, r)) return; mix.set(w + 'x' + h, (mix.get(w + 'x' + h) || 0) + 1); area += w * h; pixels += pxC[c] * pxR[r]; }));
   const sizes = [...mix].map(([k, n]) => { const [w, h] = k.split('x').map(Number); return { w, h, n }; }).sort((a, b) => b.n - a.n);
   const warnings = [];
   if (s.colBad) warnings.push(['warn', t('Invalid column widths: uniform grid used.')]);
@@ -522,7 +534,7 @@ function compute(S, project) {
   return {
     s, pv, cabs, pxW, pxH, colW, rowH, mixed, sizes,
     resW: pxC.reduce((a, v) => a + v, 0), resH: pxR.reduce((a, v) => a + v, 0),
-    widthM: sumW / 1000, heightM: sumH / 1000, areaM2: sumW * sumH / 1e6,
+    widthM: sumW / 1000, heightM: sumH / 1000, areaM2: area / 1e6, pixels, holeN,
     sigMax, pwrMax, usableA, sigPlan, pwrPlan, sig, pwr, circuits,
     peakW, avgW,
     sigJumpers: sig.branches.reduce((a, b) => a + b.cells.length - 1, 0),
@@ -569,7 +581,7 @@ function venueSummary(calcs, project) {
   const maxAvgA = Math.max(...phases.map(p => p.avgA));
   return {
     screens: calcs.length, cabs: sum(C => C.cabs), area: sum(C => C.areaM2),
-    pixels: sum(C => C.resW * C.resH), peakW: sum(C => C.peakW), avgW: sum(C => C.avgW),
+    pixels: sum(C => C.pixels), peakW: sum(C => C.peakW), avgW: sum(C => C.avgW),
     phases, br, maxPeakA, maxAvgA, feedPeak: nextStd(maxPeakA), feedAvg: nextStd(maxAvgA),
     ports: sum(C => C.sigPlan.M), circuits: sum(C => C.circuits.length),
     sigJumpers: sum(C => C.sigJumpers), pwrJumpers: sum(C => C.pwrJumpers),
@@ -789,8 +801,9 @@ function drawBoundaries(ctx, C, g, rear, grid, inset, color, lw, dash) {
   ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.setLineDash(dash || []); ctx.lineCap = 'round';
   ctx.beginPath();
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (!grid[r][c]) continue;
     const id = grid[r][c].b, x = g.X(c, rear), y = g.Y(r), cw = g.wc(c), ch = g.hr(r);
-    const nb = (dc, dr) => { const nc = c + dc, nr = r + dr; return (nc < 0 || nr < 0 || nc >= cols || nr >= rows) ? -1 : grid[nr][nc].b; };
+    const nb = (dc, dr) => { const nc = c + dc, nr = r + dr; return (nc < 0 || nr < 0 || nc >= cols || nr >= rows) ? -1 : (grid[nr][nc] ? grid[nr][nc].b : -1); };
     if (nb(0, -1) !== id) { ctx.moveTo(x, y + inset); ctx.lineTo(x + cw, y + inset); }
     if (nb(0, 1) !== id) { ctx.moveTo(x, y + ch - inset); ctx.lineTo(x + cw, y + ch - inset); }
     const leftId = rear ? nb(1, 0) : nb(-1, 0), rightId = rear ? nb(-1, 0) : nb(1, 0);
@@ -879,6 +892,10 @@ function drawLayout(ctx, C, box, o) {
 
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const x = g.X(c, rear), y = g.Y(r), cw = g.wc(c), ch = g.hr(r);
+    if (!C.sig.grid[r][c]) {
+      ctx.save(); ctx.strokeStyle = T.mut; ctx.globalAlpha = 0.5; ctx.lineWidth = Math.max(0.5, lw * 0.3); ctx.setLineDash([lw * 1.5, lw * 1.5]);
+      ctx.strokeRect(x + 1, y + 1, cw - 2, ch - 2); ctx.restore(); continue;
+    }
     let fill = T.empty;
     if (o.fill === 'signal') fill = branchColor(C.sig.grid[r][c].b, T);
     else if (o.fill === 'power') fill = branchColor(C.pwr.grid[r][c].b, T);
@@ -954,6 +971,7 @@ function screenSpec(C, idx) {
   L.push(I + t('Size: {0} x {1} m ({2} m2), {3} x {4} = {5} cabinets {6}x{7} mm', f2(C.widthM), f2(C.heightM), f2(C.areaM2), s.cols, s.rows, C.cabs, C.colW[0], C.rowH[0]));
   if (s.model) L.push(I + t('Module: {0}', (LIB.find(m => m.id === s.model) || {}).name));
   if (C.mixed) L.push(I + t('Cabinet mix: {0}', mixDesc(C)));
+  if (C.holeN) L.push(I + t('Cutouts (no module): {0}', C.holeN));
   L.push(I + t('Pixel pitch: {0} mm, resolution {1} x {2} px ({3} MP)', s.pitch, C.resW, C.resH, (C.resW * C.resH / 1e6).toFixed(2)));
   L.push(I + t('Power: peak {0} kW / working {1} kW ({2}%), {3} W per cabinet', f2(C.peakW / 1000), f2(C.avgW / 1000), s.avgPct, s.cabPeak));
   L.push(I + t('Circuits: {0} x {1} A (headroom {2}%, sized on {3} load), {4} {5}', C.circuits.length, s.breaker, s.headroom, t(s.sizeBy === 'peak' ? 'peak' : 'working'), slicePattern(C.pwrPlan), axisName(C.pwrPlan)));
@@ -1191,17 +1209,31 @@ function cellAt(ev) {
   const find = (arr, v) => { let i = 0; while (i < arr.length - 2 && arr[i + 1] <= v) i++; return i; };
   return { c: find(g.xs, rear ? g.tw - lx : lx), r: find(g.ys, ly) };
 }
+let cutMode = false;
+function toggleHole(cell) {
+  if (!cell) return;
+  const s = active(), k = cell.c + ',' + cell.r, i = s.holes.indexOf(k);
+  if (i >= 0) s.holes.splice(i, 1);
+  else if (s.holes.length + 1 < s.cols * s.rows) s.holes.push(k);
+  syncForm(); render();
+}
 let drag = null;
 const ptrs = new Map();
 let pinch = null;
 const pinchState = () => { const [a, b] = [...ptrs.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; };
 cv.addEventListener('pointerdown', e => {
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  tapStart = ptrs.size === 1 ? { id: e.pointerId, x: e.clientX, y: e.clientY } : null;
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
   if (ptrs.size >= 2) { drag = null; pinch = { ...pinchState(), z: view.z, vx: view.x, vy: view.y }; }
   else { drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; cv.classList.add('drag'); }
 });
+let tapStart = null;
 const endPtr = e => {
+  if (e.type === 'pointerup' && tapStart && tapStart.id === e.pointerId && ptrs.size === 1 && cutMode) {
+    if (Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 6) toggleHole(cellAt(e));
+  }
+  tapStart = null;
   ptrs.delete(e.pointerId);
   if (ptrs.size < 2) pinch = null;
   if (ptrs.size === 1) { const p = [...ptrs.values()][0]; drag = { x: p.x, y: p.y, vx: view.x, vy: view.y }; }
@@ -1224,8 +1256,8 @@ cv.addEventListener('pointermove', e => {
   const cell = cellAt(e), tip = $('#tip');
   hover = cell;
   if (cell) {
-    const C = activeCalc(), sg = C.sig.grid[cell.r][cell.c], pg = C.pwr.grid[cell.r][cell.c], cir = C.circuits[pg.b];
-    tip.textContent = t('Cabinet col {0}, row {1}', cell.c + 1, cell.r + 1) + '\n' + t('Signal: port {0}, #{1}', sg.b + 1, sg.i + 1) + '\n' + t('⚡ Power: circuit {0}, #{1}, {2}', pg.b + 1, pg.i + 1, PHASE_NAME[cir.phase]);
+    const C = activeCalc(), sg = C.sig.grid[cell.r][cell.c], pg = C.pwr.grid[cell.r][cell.c], cir = pg && C.circuits[pg.b];
+    tip.textContent = !sg ? t('Cabinet col {0}, row {1}', cell.c + 1, cell.r + 1) + '\n' + t('Cutout (no module)') : t('Cabinet col {0}, row {1}', cell.c + 1, cell.r + 1) + '\n' + t('Signal: port {0}, #{1}', sg.b + 1, sg.i + 1) + '\n' + t('⚡ Power: circuit {0}, #{1}, {2}', pg.b + 1, pg.i + 1, PHASE_NAME[cir.phase]);
     const wr = $('#cwrap').getBoundingClientRect();
     tip.style.display = 'block';
     tip.style.left = Math.max(0, Math.min(e.clientX - wr.left + 14, wr.width - 190)) + 'px';
@@ -1556,6 +1588,8 @@ const HELP = {
 <li>Choose where signal and power enter the screen, check the diagram, then export.</li></ol>
 <h3>2. Mixed cabinet sizes</h3>
 <p>Use <b>Mixed column widths</b> / <b>Mixed row heights</b> to combine, for example, 1 m and 0.5 m modules in one screen. Format: <code>4x1000, 8x500</code> (count × size in mm) or <code>0.5, 1, 1, 0.5</code> (metres). A cabinet = column width × row height; power and pixels scale from the base cabinet by area. Editing target size or cols/rows clears the list for that axis. Decimals use a dot.</p>
+<h3>2b. Cutouts</h3>
+<p>Enable <b>Cutouts</b> above the canvas and click or tap cabinets to remove them (holes, stepped shapes). A cutout has no module: it is skipped by signal and power routing and excluded from power, pixels, area and counts. Click again to restore; <b>Clear</b> restores all.</p>
 <h3>3. Power</h3>
 <ul><li>Peak and working (30–40 %) power, current per phase L1/L2/L3.</li>
 <li>Circuits are sliced by whole columns or rows (<b>Slice by</b>) so branches are symmetrical. Set <b>Circuits</b> to override the automatic count (0 = auto).</li>
@@ -1586,6 +1620,8 @@ const HELP = {
 <li>Выберите точки входа сигнала и питания, проверьте схему и сделайте экспорт.</li></ol>
 <h3>2. Разные модули в одном экране</h3>
 <p>Поля <b>Смешанные ширины столбцов</b> / <b>Смешанные высоты строк</b> позволяют соединять, например, метровые и полуметровые модули. Формат: <code>4x1000, 8x500</code> (количество × размер в мм) или <code>0.5, 1, 1, 0.5</code> (в метрах). Кабинет = ширина колонки × высота строки; мощность и пиксели считаются от базового кабинета по площади. Если изменить целевой размер или колонки/строки, список по этой оси очистится. Дроби пишутся через точку.</p>
+<h3>2б. Вырезы</h3>
+<p>Включите галочку <b>Вырезы</b> над схемой и нажимайте на ячейки, чтобы убрать модуль (отверстия, ступенчатая форма). Выреза нет в коммутации сигнала и питания, он не учитывается в мощности, пикселях, площади и количестве. Повторное нажатие возвращает модуль; <b>Очистить</b> возвращает все.</p>
 <h3>3. Питание</h3>
 <ul><li>Пиковая и рабочая (30–40 %) мощность, ток по фазам L1/L2/L3.</li>
 <li>Цепи режутся по целым колонкам или строкам (<b>Делить по</b>), поэтому ветки симметричны. Поле <b>Цепей</b> задаёт число цепей вручную (0 = авто).</li>
@@ -1619,7 +1655,7 @@ function bind() {
     const item = e.target.closest('.sitem'); if (!item) return;
     const id = item.dataset.id, act = e.target.closest('[data-act]');
     if (act && act.dataset.act === 'dup') {
-      const src = state.screens.find(s => s.id === id), copy = Object.assign({}, src, { id: newId(), name: src.name + ' copy' });
+      const src = state.screens.find(s => s.id === id), copy = Object.assign({}, src, { id: newId(), name: src.name + ' copy', holes: [...(src.holes || [])] });
       state.screens.splice(state.screens.indexOf(src) + 1, 0, copy); state.activeId = copy.id;
     } else if (act && act.dataset.act === 'del') {
       if (state.screens.length > 1 && !confirm(t('Remove this screen?'))) return;
@@ -1636,6 +1672,8 @@ function bind() {
   $('#expSel').onchange = e => { state.ui.exp = e.target.value; saveState(); };
   $('#chkSig').onchange = e => { state.ui.sig = e.target.checked; requestDraw(); saveState(); };
   $('#chkPwr').onchange = e => { state.ui.pwr = e.target.checked; requestDraw(); saveState(); };
+  $('#chkCut').onchange = e => { cutMode = e.target.checked; cv.style.cursor = cutMode ? 'crosshair' : ''; if (cutMode) toast(t('Cutout mode: tap cabinets to remove / restore them'), false); };
+  $('#btnCutClear').onclick = () => { active().holes = []; syncForm(); render(); };
   $('#chkLbl').onchange = e => { state.ui.labels = e.target.checked; requestDraw(); saveState(); };
   $('#langSel').onchange = e => { lang = state.ui.lang = e.target.value; buildForm(); syncChrome(); syncForm(); render(); if (!$('#help').hidden) openHelp(true); };
   $('#btnHelp').onclick = () => openHelp(true);
