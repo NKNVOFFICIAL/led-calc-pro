@@ -316,16 +316,17 @@ const LIB = [
 ['ABSEN A3 Pro (3mm)',500,500,128,128,100,10.5],['ABSEN A5 (5mm)',500,500,96,96,100,10.5],
 ['ABSEN A3 (3mm)',500,500,128,128,100,10.5],['ABSEN A6 (6mm)',768,576,128,96,250,15],
 ['Diamond 20mm',640,640,32,32,200,5.8],
-['Dicolor UC-260',500,500,192,192,200,7.5],['Dicolor flex US-2 Type 4',500,500,192,192,138,8.7],
+['Dicolor UC-260',500,500,192,192,100,7.5],['Dicolor flex US-2 Type 4',500,500,192,192,138,8.7],
 ['Dicolor UC-260 Type 4 corner 90°',125,500,48,192,31,2.5],['Dicolor UC-260 Type 4 corner 60°',500,500,192,192,138,7],
 ['Dicolor UC-390',500,500,128,128,150,7.4],['Dicolor UC-390',500,1000,128,256,300,11.4],
 ['Dicolor UW-390',500,500,128,128,150,7.4],['Dicolor UC-480',500,500,104,104,150,7.4],
 ['Dicolor UC-480',500,1000,104,208,300,11.4],['Dicolor UT-390',1000,500,256,64,250,6.5],
-['Esdlumen PH8',640,640,64,64,200,21.4],['FantaLED PixelDrive P30 (beam)',800,300,16,100,100,15],
+['Esdlumen PH8',640,640,64,64,200,21.4],['FantaLED PixelDrop P30 (beam)',800,3000,16,100,500,15],
 ['Infiled ARmk-2 (5.95mm)',500,500,84,84,200,8.6],['Infiled ARmk-2 (5.95mm)',500,1000,84,168,400,12.8],
-['Uniview Beon floor (6.25mm)',500,500,80,80,200,13.5],['Uniview NIC 2.6',250,125,96,48,25,0.3],
+['Uniview Beon floor (6.25mm)',500,500,80,80,200,13.5],['Uniview NIC 2.6',250,125,96,48,200,0.3],
 ['Unilumin URMIII 1.9',500,500,256,256,78,7.4],['Unilumin URMIII 1.9-S',500,500,256,256,74,7.7],
-['Unilumin URMIII 1.9-C (45°)',500,500,256,256,79,7.7],['Yestech MT P3.9x7.8',1000,500,256,64,250,7.5]
+['Unilumin URMIII 1.9-C (45°)',500,500,256,256,79,7.7],['Yestech MT P3.9x7.8',1000,500,256,64,250,7.5],
+['Scenico floor roll (1.95mm)',1000,500,512,256,250,8],['Scenico floor roll (1.95mm)',1000,1000,512,512,500,16],['Scenico floor roll (1.95mm)',2000,1000,1024,512,1000,32]
 ].map(a => ({ id: a[0] + ' ' + a[1] + 'x' + a[2], name: a[0], w: a[1], h: a[2], px: a[3], py: a[4], peak: a[5], kg: a[6] }));
 
 function defaultScreen(n = 1) {
@@ -368,8 +369,8 @@ function clean(S) {
   const s = Object.assign({}, S);
   s.name = String(s.name || d.name);
   s.preset = pick(s.preset, [...Object.keys(PRESETS), 'custom'], 'custom');
-  s.cabW = clamp(num(s.cabW, d.cabW), 100, 2000);
-  s.cabH = clamp(num(s.cabH, d.cabH), 100, 2000);
+  s.cabW = clamp(num(s.cabW, d.cabW), 100, 3000);
+  s.cabH = clamp(num(s.cabH, d.cabH), 100, 3000);
   s.pitch = clamp(num(s.pitch, d.pitch), 0.4, 50);
   s.pitchY = s.pitchY > 0 ? clamp(num(s.pitchY, 0), 0.4, 50) : 0;
   s.model = LIB.some(m => m.id === s.model) ? s.model : '';
@@ -993,8 +994,8 @@ const FORM = [
     ['name', 'Screen name', 'text', 'w'],
     ['preset', 'Cabinet preset', 'select', 'w', [['500x500', '500 × 500 mm'], ['500x1000', '500 × 1000 mm'], ['960x960', '960 × 960 mm'], ['custom', 'Custom']]],
     ['model', 'Module library', 'select', 'w', [['', '— Custom / preset —'], ...LIB.map(m => [m.id, `${m.name} · ${m.w}×${m.h} · ${m.px}×${m.py} px · ${m.peak} W · ${m.kg} kg`])]],
-    ['cabW', 'Cabinet width, mm', 'number', '', { min: 100, max: 2000, step: 1 }],
-    ['cabH', 'Cabinet height, mm', 'number', '', { min: 100, max: 2000, step: 1 }],
+    ['cabW', 'Cabinet width, mm', 'number', '', { min: 100, max: 3000, step: 1 }],
+    ['cabH', 'Cabinet height, mm', 'number', '', { min: 100, max: 3000, step: 1 }],
     ['pitch', 'Pixel pitch, mm', 'number', '', { min: 0.4, max: 50, step: 0.01 }],
     ['cabPeak', 'Peak power / cab, W', 'number', '', { min: 1, max: 5000, step: 1 }]
   ] },
