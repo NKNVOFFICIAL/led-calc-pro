@@ -201,7 +201,7 @@ const PHASE_NAME = ['L1', 'L2', 'L3'];
 const RU = {
 'Language':'Язык','Project':'Проект','Venue':'Площадка','Drawn by':'Чертёж выполнил','Mains supply':'Питающая сеть',
 '380 V 3-phase (220 V per phase)':'380 В, 3 фазы (220 В на фазу)','220 V 3-phase (127 V per phase)':'220 В, 3 фазы (127 В на фазу)',
-'Help':'Инструкция','Close':'Закрыть','Import .ledmask':'Импорт .ledmask','Sample .ledmask':'Пример .ledmask','Reset':'Сброс','Screens':'Экраны','+ Add':'+ Добавить',
+'Help':'Инструкция','Module library':'Библиотека модулей','— Custom / preset —':'— Свой / пресет —','Module: {0}':'Модуль: {0}','Close':'Закрыть','Import .ledmask':'Импорт .ledmask','Sample .ledmask':'Пример .ledmask','Reset':'Сброс','Screens':'Экраны','+ Add':'+ Добавить',
 'Front View':'Вид спереди','Rear View (Rigging)':'Вид сзади (риггинг)',
 'Colour: signal ports':'Цвет: порты сигнала','Colour: power circuits':'Цвет: цепи питания','Colour: phase L1/L2/L3':'Цвет: фазы L1/L2/L3','Colour: none':'Цвет: нет',
 'Signal':'Сигнал','⚡ Power':'⚡ Питание','Labels':'Подписи','Fit':'Вписать',
@@ -308,10 +308,30 @@ const PRESETS = {
   '960x960':  { w: 960, h: 960,  peak: 700 }
 };
 
+/* Module library: [name, cabW mm, cabH mm, px W, px H, power per cabinet W (default), weight kg] */
+const LIB = [
+['ROE MC-7H',600,600,80,80,250,9.5],['ROE MC-12H',600,600,48,48,250,7.5],['ROE MC-12F',600,600,48,48,200,5.4],
+['ROE Carbon CB-3 half',600,600,136,136,250,7.5],['ROE Carbon CB-3',600,1200,136,272,500,13],
+['ABSEN D2V (2.9mm)',500,500,168,168,100,9.2],['ABSEN D3V (2mm)',500,500,128,128,100,9.2],
+['ABSEN A3 Pro (3mm)',500,500,128,128,100,10.5],['ABSEN A5 (5mm)',500,500,96,96,100,10.5],
+['ABSEN A3 (3mm)',500,500,128,128,100,10.5],['ABSEN A6 (6mm)',768,576,128,96,250,15],
+['Diamond 20mm',640,640,32,32,200,5.8],
+['Dicolor UC-260',500,500,192,192,200,7.5],['Dicolor flex US-2 Type 4',500,500,192,192,138,8.7],
+['Dicolor UC-260 Type 4 corner 90°',125,500,48,192,31,2.5],['Dicolor UC-260 Type 4 corner 60°',500,500,192,192,138,7],
+['Dicolor UC-390',500,500,128,128,150,7.4],['Dicolor UC-390',500,1000,128,256,300,11.4],
+['Dicolor UW-390',500,500,128,128,150,7.4],['Dicolor UC-480',500,500,104,104,150,7.4],
+['Dicolor UC-480',500,1000,104,208,300,11.4],['Dicolor UT-390',1000,500,256,64,250,6.5],
+['Esdlumen PH8',640,640,64,64,200,21.4],['FantaLED PixelDrive P30 (beam)',800,300,16,100,100,15],
+['Infiled ARmk-2 (5.95mm)',500,500,84,84,200,8.6],['Infiled ARmk-2 (5.95mm)',500,1000,84,168,400,12.8],
+['Uniview Beon floor (6.25mm)',500,500,80,80,200,13.5],['Uniview NIC 2.6',250,125,96,48,25,0.3],
+['Unilumin URMIII 1.9',500,500,256,256,78,7.4],['Unilumin URMIII 1.9-S',500,500,256,256,74,7.7],
+['Unilumin URMIII 1.9-C (45°)',500,500,256,256,79,7.7],['Yestech MT P3.9x7.8',1000,500,256,64,250,7.5]
+].map(a => ({ id: a[0] + ' ' + a[1] + 'x' + a[2], name: a[0], w: a[1], h: a[2], px: a[3], py: a[4], peak: a[5], kg: a[6] }));
+
 function defaultScreen(n = 1) {
   return {
     id: newId(), name: 'Screen ' + n,
-    preset: '500x500', cabW: 500, cabH: 500, pitch: 2.6, cabPeak: 200,
+    preset: '500x500', model: '', pitchY: 0, cabW: 500, cabH: 500, pitch: 2.6, cabPeak: 200,
     tW: 8, tH: 4, cols: 16, rows: 8, colSpec: '', rowSpec: '',
     avgPct: 35, breaker: 16, headroom: 20, sizeBy: 'peak',
     portPx: 655360,
@@ -351,6 +371,8 @@ function clean(S) {
   s.cabW = clamp(num(s.cabW, d.cabW), 100, 2000);
   s.cabH = clamp(num(s.cabH, d.cabH), 100, 2000);
   s.pitch = clamp(num(s.pitch, d.pitch), 0.4, 50);
+  s.pitchY = s.pitchY > 0 ? clamp(num(s.pitchY, 0), 0.4, 50) : 0;
+  s.model = LIB.some(m => m.id === s.model) ? s.model : '';
   s.cabPeak = clamp(num(s.cabPeak, d.cabPeak), 1, 5000);
   s.tW = clamp(num(s.tW, d.tW), 0.1, 500);
   s.tH = clamp(num(s.tH, d.tH), 0.1, 500);
@@ -463,14 +485,14 @@ function compute(S, project) {
   const s = clean(S);
   const pv = phaseVoltage(project);
   const cabs = s.cols * s.rows;
-  const pxW = Math.max(1, Math.round(s.cabW / s.pitch)), pxH = Math.max(1, Math.round(s.cabH / s.pitch));
+  const pxW = Math.max(1, Math.round(s.cabW / s.pitch)), pxH = Math.max(1, Math.round(s.cabH / (s.pitchY || s.pitch)));
   const sigMax = Math.max(1, Math.floor(s.portPx / (pxW * pxH)));
   const usableA = s.breaker * (1 - s.headroom / 100);
   const basisW = s.cabPeak * (s.sizeBy === 'peak' ? 1 : s.avgPct / 100);
   const pwrMax = Math.max(1, Math.floor(usableA * pv / basisW));
   // Per-cell loads relative to the base cabinet: pixels for signal, area for power.
   const colW = s.colW, rowH = s.rowH;
-  const pxC = colW.map(w => Math.max(1, Math.round(w / s.pitch))), pxR = rowH.map(h => Math.max(1, Math.round(h / s.pitch)));
+  const pxC = colW.map(w => Math.max(1, Math.round(w / s.pitch))), pxR = rowH.map(h => Math.max(1, Math.round(h / (s.pitchY || s.pitch))));
   const sigWt = rowH.map((_, r) => colW.map((_, c) => pxC[c] * pxR[r] / (pxW * pxH)));
   const pwrWt = rowH.map((h, r) => colW.map((w, c) => w * h / (s.cabW * s.cabH)));
   const sigPlan = planSlices(sigWt, sigMax, s.sigOverride, s.sigAxis);
@@ -929,6 +951,7 @@ function screenSpec(C, idx) {
   const s = C.s, L = [], I = '  ';
   L.push(`${idx != null ? (idx + 1) + '. ' : ''}${s.name}`);
   L.push(I + t('Size: {0} x {1} m ({2} m2), {3} x {4} = {5} cabinets {6}x{7} mm', f2(C.widthM), f2(C.heightM), f2(C.areaM2), s.cols, s.rows, C.cabs, C.colW[0], C.rowH[0]));
+  if (s.model) L.push(I + t('Module: {0}', (LIB.find(m => m.id === s.model) || {}).name));
   if (C.mixed) L.push(I + t('Cabinet mix: {0}', mixDesc(C)));
   L.push(I + t('Pixel pitch: {0} mm, resolution {1} x {2} px ({3} MP)', s.pitch, C.resW, C.resH, (C.resW * C.resH / 1e6).toFixed(2)));
   L.push(I + t('Power: peak {0} kW / working {1} kW ({2}%), {3} W per cabinet', f2(C.peakW / 1000), f2(C.avgW / 1000), s.avgPct, s.cabPeak));
@@ -969,6 +992,7 @@ const FORM = [
   { t: 'Screen & cabinet', open: true, f: [
     ['name', 'Screen name', 'text', 'w'],
     ['preset', 'Cabinet preset', 'select', 'w', [['500x500', '500 × 500 mm'], ['500x1000', '500 × 1000 mm'], ['960x960', '960 × 960 mm'], ['custom', 'Custom']]],
+    ['model', 'Module library', 'select', 'w', [['', '— Custom / preset —'], ...LIB.map(m => [m.id, `${m.name} · ${m.w}×${m.h} · ${m.px}×${m.py} px · ${m.peak} W · ${m.kg} kg`])]],
     ['cabW', 'Cabinet width, mm', 'number', '', { min: 100, max: 2000, step: 1 }],
     ['cabH', 'Cabinet height, mm', 'number', '', { min: 100, max: 2000, step: 1 }],
     ['pitch', 'Pixel pitch, mm', 'number', '', { min: 0.4, max: 50, step: 0.01 }],
@@ -1041,10 +1065,21 @@ function setField(k, raw) {
   } else s[k] = raw;
   switch (k) {
     case 'preset':
-      if (PRESETS[raw]) { const p = PRESETS[raw]; s.cabW = p.w; s.cabH = p.h; s.cabPeak = p.peak; regrid(s); }
+      if (PRESETS[raw]) { s.model = ''; s.pitchY = 0; const p = PRESETS[raw]; s.cabW = p.w; s.cabH = p.h; s.cabPeak = p.peak; regrid(s); }
       break;
+    case 'model': {
+      const m = LIB.find(x => x.id === raw);
+      if (m) {
+        s.cabW = m.w; s.cabH = m.h; s.cabPeak = m.peak; s.preset = 'custom';
+        s.pitch = +(m.w / m.px).toFixed(5); s.pitchY = +(m.h / m.py).toFixed(5);
+        if (s.pitchY === s.pitch) s.pitchY = 0;
+        s.colSpec = ''; s.rowSpec = ''; regrid(s);
+      }
+      break;
+    }
+    case 'pitch': s.model = ''; s.pitchY = 0; break;
     case 'cabW': case 'cabH':
-      s.preset = 'custom'; regrid(s); break;
+      s.preset = 'custom'; s.model = ''; s.pitchY = 0; regrid(s); break;
     case 'tW': s.colSpec = ''; regrid(s); break;
     case 'tH': s.rowSpec = ''; regrid(s); break;
     case 'cols': s.colSpec = ''; syncSize(s); break;
@@ -1514,7 +1549,7 @@ const HELP = {
     html: `
 <h3>1. Quick start</h3>
 <ol><li>Add screens in the <b>Screens</b> list (<code>+ Add</code>, duplicate or delete with the icons).</li>
-<li>Pick a cabinet preset (500×500, 500×1000, 960×960 or custom), pixel pitch and peak power per cabinet.</li>
+<li>Pick a model from the <b>Module library</b> (size, pixels and power are filled in) or a cabinet preset (500×500, 500×1000, 960×960 or custom), pixel pitch and peak power per cabinet.</li>
 <li>Enter the target width/height in metres: the grid (columns × rows) is calculated automatically. You can also type columns/rows directly.</li>
 <li>Set the mains supply (380 V or 220 V), working load %, breaker (16 A / 32 A) and safety headroom.</li>
 <li>Choose where signal and power enter the screen, check the diagram, then export.</li></ol>
@@ -1544,7 +1579,7 @@ const HELP = {
     html: `
 <h3>1. Быстрый старт</h3>
 <ol><li>Добавьте экраны в списке <b>Экраны</b> (<code>+ Добавить</code>, дублирование и удаление иконками).</li>
-<li>Выберите пресет кабинета (500×500, 500×1000, 960×960 или свой), шаг пикселя и пиковую мощность кабинета.</li>
+<li>Выберите модель в <b>Библиотеке модулей</b> (размер, пиксели и мощность подставятся) или пресет кабинета (500×500, 500×1000, 960×960 или свой), шаг пикселя и пиковую мощность кабинета.</li>
 <li>Введите нужные ширину и высоту в метрах: сетка (колонки × строки) посчитается сама. Колонки и строки можно задать и вручную.</li>
 <li>Укажите питание (380 В или 220 В), рабочую нагрузку в %, автомат (16 А / 32 А) и запас.</li>
 <li>Выберите точки входа сигнала и питания, проверьте схему и сделайте экспорт.</li></ol>
